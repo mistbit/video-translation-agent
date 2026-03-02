@@ -1,0 +1,41 @@
+# Video Translation Agent Configuration
+
+# GLM API settings
+glm:
+  api_key: ""  # Set this or use GLM_API_KEY environment variable
+  model: "glm-4"
+  temperature: 0.3
+
+# OCR settings (PaddleOCR)
+ocr:
+  use_angle_cls: true
+  lang: "ch"  # ch for Chinese+English, en for English only
+  det_db_thresh: 0.3
+  det_db_box_thresh: 0.5
+  det_db_unclip_ratio: 1.6
+  max_candidates: 1000
+
+# ASR settings (Faster-Whisper)
+asr:
+  model_size: "base"  # tiny, base, small, medium, large
+  compute_type: "int8"  # int8, float16, float32
+  language: "auto"  # auto, zh, en
+  beam_size: 5
+
+# Video processing
+video:
+  frame_interval: 1.0  # seconds between frames for OCR
+  output_fps: 30
+
+# Output settings
+output:
+  subtitle_format: "srt"  # srt, vtt, ass
+  encoding: "utf-8-sig"  # utf-8-sig for SRT with BOM
+  output_dir: "./output"
+
+# Subtitle export settings
+subtitle:
+  font_size: 24
+  font_color: "white"
+  position: "bottom"  # bottom, top, center
+  margin: 10
