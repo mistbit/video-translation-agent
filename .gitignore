@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# local runtime artifacts
+.artifacts/
+.sisyphus/
+mlx_models/
+我是不白痴.mp4
+我是不白痴.srt

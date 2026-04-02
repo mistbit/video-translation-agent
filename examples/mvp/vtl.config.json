@@ -1,0 +1,34 @@
+{
+  "runtime": {
+    "profile": "standalone",
+    "metadata_backend": "sqlite",
+    "queue_backend": "inline"
+  },
+  "input": {
+    "video": "./examples/mvp/source.mp4",
+    "subtitle": "./examples/mvp/source.srt",
+    "source_lang": "zh",
+    "target_lang": "en"
+  },
+  "pipeline": {
+    "mode": "auto",
+    "caption_strategy": "subtitle",
+    "translation_model": "qwen2.5-14b-instruct",
+    "tts_model": "melotts",
+    "voice_profile": "en_female_neutral_01",
+    "mix_mode": "duck",
+    "burn_subtitles": true,
+    "stage_order": [
+      "ingest",
+      "caption",
+      "normalize",
+      "translate",
+      "tts",
+      "render",
+      "qa"
+    ]
+  },
+  "output": {
+    "artifact_root": "./.artifacts/mvp-jobs"
+  }
+}

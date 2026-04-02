@@ -1,0 +1,14 @@
+{
+  "include": [
+    "src",
+    "apps",
+    "tests"
+  ],
+  "exclude": [
+    ".venv",
+    "**/__pycache__"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingTypeStubs": "none",
+  "reportAny": "none"
+}
