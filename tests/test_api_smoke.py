@@ -61,6 +61,7 @@ def test_api_job_lifecycle_and_rerun_endpoints(tmp_path: Path, monkeypatch) -> N
             "input_video": str(source_video),
             "input_subtitle": str(subtitle_path),
             "artifact_root": str(artifact_root),
+            "asr_model": "medium",
             "prefer_ffmpeg": False,
             "allow_render_copy_fallback": True,
         },
@@ -73,6 +74,7 @@ def test_api_job_lifecycle_and_rerun_endpoints(tmp_path: Path, monkeypatch) -> N
     assert create_payload.data is not None
     create_data = cast(dict[str, Any], create_payload.data)
     assert create_data["job"]["id"] == str(job_id)
+    assert create_data["job"]["pipeline"]["asr_model"] == "medium"
 
     list_response = client.get(
         "/api/v1/jobs", params={"artifact_root": str(artifact_root)}

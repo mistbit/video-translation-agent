@@ -3,7 +3,9 @@ import json
 from pathlib import Path
 from typing import TypedDict
 
-from video_translation_agent.adapters.normalization import normalize_caption_text
+from video_translation_agent.adapters.normalization import (
+    normalize_caption_text_for_language,
+)
 from video_translation_agent.domain.enums import StageName
 from video_translation_agent.domain.models import (
     ArtifactRecord,
@@ -25,7 +27,7 @@ class NormalizeHistoryItem(TypedDict):
     normalized_text: str
 
 
-def build_normalize_stage(normalizer=normalize_caption_text):
+def build_normalize_stage(normalizer=normalize_caption_text_for_language):
     def _run(context: StageExecutionContext) -> StageExecutionResult:
         latest = context.store.latest_segments()
         ordered = sorted(latest.values(), key=lambda item: item.segment_index)
@@ -34,7 +36,9 @@ def build_normalize_stage(normalizer=normalize_caption_text):
         history: list[NormalizeHistoryItem] = []
         for segment in ordered:
             original_text = segment.source_text or ""
-            normalized_text = normalizer(original_text)
+            normalized_text = normalizer(
+                original_text, source_lang=context.job.input.source_lang
+            )
             normalized_segment = segment.model_copy(deep=True)
             normalized_segment.status = SegmentStatus.completed
             normalized_segment.source_text = normalized_text

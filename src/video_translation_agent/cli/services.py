@@ -92,6 +92,7 @@ def resolve_job_spec(
     target_lang: str | None,
     artifact_root: str | None,
     caption_strategy: str | None,
+    asr_model: str | None,
     translation_model: str | None,
     tts_model: str | None,
     voice_profile: str | None,
@@ -121,6 +122,8 @@ def resolve_job_spec(
 
     if caption_strategy is not None:
         pipeline_config.caption_strategy = caption_strategy
+    if asr_model is not None:
+        pipeline_config.asr_model = asr_model
     if translation_model is not None:
         pipeline_config.translation_model = translation_model
     if tts_model is not None:

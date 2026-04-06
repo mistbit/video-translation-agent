@@ -113,7 +113,7 @@ def test_ingest_caption_normalize_pipeline_persists_artifacts_and_segments(
     assert latest["seg_0001"].source_text == "Hello"
     assert latest["seg_0001"].start_ms == 0
     assert latest["seg_0001"].end_ms == 1200
-    assert latest["seg_0002"].source_text == "你好! 这是,测试."
+    assert latest["seg_0002"].source_text == "你好！！ 这是，测试。"
 
     history_entries = [
         json.loads(line)

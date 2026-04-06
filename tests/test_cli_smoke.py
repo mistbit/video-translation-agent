@@ -22,6 +22,10 @@ def test_cli_help_smoke() -> None:
     assert "segment" in result.output
     assert "config" in result.output
 
+    run_help = runner.invoke(app, ["run", "--help"])
+    assert run_help.exit_code == 0
+    assert "--asr-model" in run_help.output
+
 
 def test_cli_config_init_validate_show(tmp_path: Path) -> None:
     runner = CliRunner()
@@ -42,6 +46,7 @@ def test_cli_config_init_validate_show(tmp_path: Path) -> None:
     assert show_result.exit_code == 0
     payload = json.loads(show_result.output)
     assert payload["pipeline"]["caption_strategy"] == "auto"
+    assert payload["pipeline"]["asr_model"] == "small"
 
 
 def test_cli_run_end_to_end_local_pipeline(tmp_path: Path, monkeypatch) -> None:
@@ -81,6 +86,8 @@ def test_cli_run_end_to_end_local_pipeline(tmp_path: Path, monkeypatch) -> None:
             str(subtitle_path),
             "--artifact-root",
             str(artifact_root),
+            "--asr-model",
+            "medium",
             "--no-prefer-ffmpeg",
         ],
     )
@@ -89,6 +96,8 @@ def test_cli_run_end_to_end_local_pipeline(tmp_path: Path, monkeypatch) -> None:
     workspace = JobWorkspace(artifact_root=artifact_root, job_id=job_id)
     store = LocalMetadataStore(workspace)
     assert workspace.job_manifest_path.exists()
+    manifest = json.loads(workspace.job_manifest_path.read_text(encoding="utf-8"))
+    assert manifest["pipeline"]["asr_model"] == "medium"
     assert (workspace.stage_dir(StageName.TRANSLATE) / "en_subtitle.srt").exists()
     assert (workspace.stage_dir(StageName.TTS) / "dub_en.wav").exists()
     assert (workspace.stage_dir(StageName.RENDER) / "final_en.mp4").exists()

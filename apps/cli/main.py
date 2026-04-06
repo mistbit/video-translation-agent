@@ -38,6 +38,13 @@ def run(
     target_lang: str | None = typer.Option(None, help="Target language."),
     artifact_root: str | None = typer.Option(None, help="Job artifacts root path."),
     caption_strategy: str | None = typer.Option(None, help="Caption strategy."),
+    asr_model: str | None = typer.Option(
+        None,
+        help=(
+            "ASR model size. Use 'medium' for higher-accuracy Chinese ASR; it is"
+            " slower and uses tuned decode settings."
+        ),
+    ),
     translation_model: str | None = typer.Option(None, help="Translation model."),
     tts_model: str | None = typer.Option(None, help="TTS model."),
     voice_profile: str | None = typer.Option(None, help="Voice profile."),
@@ -72,6 +79,7 @@ def run(
             target_lang=target_lang,
             artifact_root=artifact_root,
             caption_strategy=caption_strategy,
+            asr_model=asr_model,
             translation_model=translation_model,
             tts_model=tts_model,
             voice_profile=voice_profile,

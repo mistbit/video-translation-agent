@@ -26,6 +26,7 @@ class CreateJobRequest(BaseModel):
     target_lang: str | None = None
     artifact_root: str = "jobs"
     caption_strategy: str | None = None
+    asr_model: str | None = None
     translation_model: str | None = None
     tts_model: str | None = None
     voice_profile: str | None = None
@@ -179,6 +180,7 @@ def create_job(request: CreateJobRequest) -> JobManifest:
         target_lang=request.target_lang,
         artifact_root=request.artifact_root,
         caption_strategy=request.caption_strategy,
+        asr_model=request.asr_model,
         translation_model=request.translation_model,
         tts_model=request.tts_model,
         voice_profile=request.voice_profile,

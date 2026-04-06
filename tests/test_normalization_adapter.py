@@ -1,4 +1,7 @@
-from video_translation_agent.adapters.normalization import normalize_caption_text
+from video_translation_agent.adapters.normalization import (
+    normalize_caption_text,
+    normalize_caption_text_for_language,
+)
 
 
 def test_normalization_collapses_whitespace_and_duplicate_tokens() -> None:
@@ -9,3 +12,11 @@ def test_normalization_collapses_whitespace_and_duplicate_tokens() -> None:
 def test_normalization_unifies_common_punctuation() -> None:
     text = "你好！！ 这是，测试。"
     assert normalize_caption_text(text) == "你好! 这是,测试."
+
+
+def test_chinese_normalization_preserves_chinese_punctuation() -> None:
+    text = "你好！！ 这是，测试。"
+    assert (
+        normalize_caption_text_for_language(text, source_lang="zh")
+        == "你好！！ 这是，测试。"
+    )

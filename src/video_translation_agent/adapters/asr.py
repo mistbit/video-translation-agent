@@ -1,10 +1,17 @@
 import json
+import math
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel
+
+_ZH_INITIAL_PROMPT = "以下是中文视频字幕，请输出简体中文，不要翻译，保留口语表达。"
+_ZH_VAD_PARAMETERS = {
+    "min_silence_duration_ms": 300,
+    "speech_pad_ms": 200,
+}
 
 
 class ASRTranscriptionError(RuntimeError):
@@ -32,7 +39,7 @@ class FasterWhisperASRAdapter:
     def __init__(
         self,
         *,
-        model_size: str = "tiny",
+        model_size: str = "small",
         device: str = "cpu",
         compute_type: str = "int8",
         vad_filter: bool = True,
@@ -82,12 +89,30 @@ class FasterWhisperASRAdapter:
             )
             return adapter.transcribe(source, language=language)
 
+        transcribe_options = _transcribe_options_for(
+            language=language,
+            model_size=self.model_size,
+            vad_filter=self.vad_filter,
+        )
+
         try:
             segments, _ = self._model.transcribe(
                 str(source),
                 language=language,
+                **transcribe_options,
+            )
+        except ASRTranscriptionError as exc:
+            if self.model_size != "small":
+                raise ASRTranscriptionError(
+                    f"ASR transcription failed for '{source}': {exc}"
+                ) from exc
+            fallback_adapter = FasterWhisperASRAdapter(
+                model_size="tiny",
+                device=self.device,
+                compute_type=self.compute_type,
                 vad_filter=self.vad_filter,
             )
+            return fallback_adapter.transcribe(source, language=language)
         except Exception as exc:
             raise ASRTranscriptionError(
                 f"ASR transcription failed for '{source}': {exc}"
@@ -106,7 +131,9 @@ class FasterWhisperASRAdapter:
                         int(round(segment.start * 1000)) + 1,
                     ),
                     text=text,
-                    confidence=getattr(segment, "avg_logprob", None),
+                    confidence=_avg_logprob_to_confidence(
+                        getattr(segment, "avg_logprob", None)
+                    ),
                 )
             )
 
@@ -116,6 +143,64 @@ class FasterWhisperASRAdapter:
             )
 
         return normalized
+
+
+def _beam_size_for(language: str) -> int:
+    if language.lower().startswith("zh"):
+        return 8
+    return 5
+
+
+def _best_of_for(language: str) -> int:
+    if language.lower().startswith("zh"):
+        return 8
+    return 5
+
+
+def _initial_prompt_for(language: str) -> str | None:
+    if language.lower().startswith("zh"):
+        return _ZH_INITIAL_PROMPT
+    return None
+
+
+def _vad_parameters_for(language: str) -> dict[str, int] | None:
+    if language.lower().startswith("zh"):
+        return _ZH_VAD_PARAMETERS
+    return None
+
+
+def _avg_logprob_to_confidence(avg_logprob: float | None) -> float | None:
+    if avg_logprob is None:
+        return None
+    try:
+        return max(0.0, min(1.0, math.exp(float(avg_logprob))))
+    except (TypeError, ValueError):
+        return None
+
+
+def _transcribe_options_for(
+    *, language: str, model_size: str, vad_filter: bool
+) -> dict[str, Any]:
+    options: dict[str, Any] = {
+        "task": "transcribe",
+        "beam_size": _beam_size_for(language),
+        "best_of": _best_of_for(language),
+        "temperature": 0.0,
+        "condition_on_previous_text": _condition_on_previous_text_for(
+            language=language,
+            model_size=model_size,
+        ),
+        "initial_prompt": _initial_prompt_for(language),
+        "vad_filter": vad_filter,
+        "vad_parameters": _vad_parameters_for(language),
+    }
+    return options
+
+
+def _condition_on_previous_text_for(*, language: str, model_size: str) -> bool:
+    if language.lower().startswith("zh") and model_size == "medium":
+        return False
+    return True
 
 
 def avfoundation_probe_payload(media_path: Path) -> dict[str, object]:

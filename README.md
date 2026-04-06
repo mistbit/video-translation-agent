@@ -13,6 +13,7 @@ This repo is useful today for local experiments and personal workflows, especial
 - CLI supports: `run`, `stage run`, `segment rerun`, `config init/show/validate`, `doctor`, `completion show/install`
 - API supports: health, create/list/get job, artifacts/logs/qa reads, stage rerun, segment rerun
 - Caption strategy defaults to `auto`: **subtitle sidecar is preferred when provided**, otherwise the pipeline falls back to local ASR/media translation behavior
+- Default ASR model is `small`; for Chinese voice-only extraction you can opt into `medium` for higher accuracy at higher CPU cost
 - For subtitle-sourced Chinese jobs, the pipeline prefers **offline text translation** over audio-derived translation; this is the better path for curated manual subtitles
 - For non-subtitle jobs, translation falls back to **media translation from the source video**
 - TTS uses local fallback synthesis; on macOS it can use **`say` + `afconvert`** to generate spoken audio instead of the older sine-wave placeholder
@@ -73,6 +74,14 @@ Notes:
 
 - If `input_subtitle` is provided, the subtitle sidecar is the source of truth
 - Otherwise `caption_strategy=auto` falls back to local audio-derived captioning
+- For Chinese ASR, `small` is the default balance; `medium` is available as a slower high-accuracy mode
+
+### ASR model notes
+
+- Default: `small`
+- High-accuracy Chinese mode: `medium`
+- When `asr_model=medium` and `source_lang=zh`, the app disables Whisper `condition_on_previous_text` to reduce long-span repetition/hallucination loops seen in local CPU runs
+- `medium` is materially slower than `small`; in local tests it improved weighted CER but took about `2.24x` longer
 
 ### 2) Translation
 
@@ -132,6 +141,18 @@ python -m apps.cli.main run \
   --no-prefer-ffmpeg
 ```
 
+Real local run without sidecar subtitles, using higher-accuracy Chinese ASR:
+
+```bash
+python -m apps.cli.main run \
+  --input-video ./我在迪拜等你.mp4 \
+  --source-lang zh \
+  --target-lang en \
+  --asr-model medium \
+  --artifact-root ./.artifacts/dubai-medium-run \
+  --no-prefer-ffmpeg
+```
+
 Stage rerun:
 
 ```bash
@@ -164,6 +185,7 @@ Notes:
 
 - `run --mode remote` is not implemented in this phase
 - `config init` can write `.json` or `.yaml`; TOML write is not supported
+- `--asr-model medium` is currently the recommended high-accuracy option for Chinese ASR-only runs when extra latency is acceptable
 
 ## API usage
 
@@ -190,10 +212,16 @@ curl -s -X POST http://127.0.0.1:8000/api/v1/jobs \
     "input_video": "./examples/mvp/source.mp4",
     "input_subtitle": "./examples/mvp/source.srt",
     "artifact_root": "./.artifacts/mvp-jobs",
+    "asr_model": "medium",
     "prefer_ffmpeg": false,
     "allow_render_copy_fallback": true
   }'
 ```
+
+Notes:
+
+- `asr_model` is optional on the API; omit it to keep the default `small`
+- For Chinese ASR-only jobs, `"asr_model": "medium"` enables the higher-accuracy tuned decode path
 
 Inspect job state and outputs:
 

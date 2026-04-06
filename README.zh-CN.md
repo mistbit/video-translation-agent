@@ -13,6 +13,7 @@
 - CLI 支持：`run`、`stage run`、`segment rerun`、`config init/show/validate`、`doctor`、`completion show/install`
 - API 支持：健康检查、创建/列出/读取任务、读取 artifacts/logs/qa、阶段重跑、片段重跑
 - `caption_strategy=auto` 时，**如果提供字幕 sidecar，会优先使用字幕**；否则退回到本地 ASR / 媒体翻译路径
+- 默认 ASR 模型是 `small`；如果是中文音频直出字幕场景，可以切到 `medium`，识别率更高但 CPU 开销也更大
 - 对于**带中文字幕 sidecar** 的任务，系统优先使用**离线文本翻译**，而不是再从音频翻译；这更适合人工整理过的字幕
 - 对于**没有字幕**的任务，系统会退回到**基于源视频的媒体翻译**
 - TTS 有本地兜底实现；在 macOS 上可使用 **`say` + `afconvert`** 生成真正的语音音频
@@ -73,6 +74,14 @@ python -m pytest
 
 - 如果传入 `input_subtitle`，则字幕 sidecar 是事实来源
 - 否则 `caption_strategy=auto` 会退回到基于音频的视频字幕提取路径
+- 对中文 ASR 来说，`small` 是默认均衡选择；`medium` 可作为更慢但更准的高精度模式
+
+### ASR 模型说明
+
+- 默认值：`small`
+- 中文高精度模式：`medium`
+- 当 `asr_model=medium` 且 `source_lang=zh` 时，系统会关闭 Whisper 的 `condition_on_previous_text`，以减少本地 CPU 场景下常见的长段重复/幻觉问题
+- `medium` 明显慢于 `small`；本地测试中它提升了加权 CER，但总耗时约增加到 `2.24x`
 
 ### 2）翻译
 
@@ -132,6 +141,18 @@ python -m apps.cli.main run \
   --no-prefer-ffmpeg
 ```
 
+不带外挂字幕，直接使用更高精度的中文 ASR：
+
+```bash
+python -m apps.cli.main run \
+  --input-video ./我在迪拜等你.mp4 \
+  --source-lang zh \
+  --target-lang en \
+  --asr-model medium \
+  --artifact-root ./.artifacts/dubai-medium-run \
+  --no-prefer-ffmpeg
+```
+
 阶段重跑：
 
 ```bash
@@ -164,6 +185,7 @@ python -m apps.cli.main config show --config ./vtl.config.json
 
 - 本阶段尚未实现 `run --mode remote`
 - `config init` 可写 `.json` 或 `.yaml`；不支持写 TOML
+- 当你能接受更高延迟时，`--asr-model medium` 是当前推荐的中文高精度 ASR 选项
 
 ## API 用法
 
@@ -190,10 +212,16 @@ curl -s -X POST http://127.0.0.1:8000/api/v1/jobs \
     "input_video": "./examples/mvp/source.mp4",
     "input_subtitle": "./examples/mvp/source.srt",
     "artifact_root": "./.artifacts/mvp-jobs",
+    "asr_model": "medium",
     "prefer_ffmpeg": false,
     "allow_render_copy_fallback": true
   }'
 ```
+
+说明：
+
+- API 里的 `asr_model` 是可选项；不传时使用默认的 `small`
+- 对于中文 ASR 直出字幕场景，传 `"asr_model": "medium"` 会启用更高精度的调优解码路径
 
 查看任务状态与输出：
 

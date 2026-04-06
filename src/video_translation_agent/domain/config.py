@@ -19,7 +19,7 @@ class InputConfig(BaseModel):
 class PipelineConfig(BaseModel):
     mode: str = "auto"
     caption_strategy: str = "auto"
-    asr_model: str = "tiny"
+    asr_model: str = "small"
     translation_model: str = "qwen2.5-14b-instruct"
     tts_model: str = "melotts"
     voice_profile: str = "en_female_neutral_01"
