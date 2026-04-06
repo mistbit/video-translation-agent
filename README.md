@@ -245,6 +245,40 @@ curl -s -X POST "http://127.0.0.1:8000/api/v1/jobs/00000000-0000-0000-0000-00000
   -d '{"artifact_root":"./.artifacts/mvp-jobs","reason":"api rerun","execute_stages":true,"prefer_ffmpeg":false,"allow_render_copy_fallback":true}'
 ```
 
+## Web console
+
+The repo also ships a local web console under `apps/web/`. It is path-based rather than upload-based: run the frontend on the same machine as the FastAPI service, then paste local video/subtitle paths into the form.
+
+Start the API:
+
+```bash
+python -m uvicorn apps.api.main:app --reload
+```
+
+Start the frontend:
+
+```bash
+cd apps/web
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+Then open `http://127.0.0.1:5173`.
+
+Notes:
+
+- The header language switch supports both English and Chinese UI copy
+- `ASR Model = medium` is surfaced directly in the form for higher-accuracy Chinese ASR runs
+- If `Subtitle Path` is provided, the job will ingest the sidecar instead of exercising ASR extraction
+
+English home screen:
+
+![Web console home screen](./docs/screenshots/web-console-en-home.png)
+
+Completed run view:
+
+![Web console completed run](./docs/screenshots/web-console-en-complete.png)
+
 ## Artifact layout
 
 For a job at `<artifact_root>/<job_id>/`:

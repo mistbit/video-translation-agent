@@ -245,6 +245,40 @@ curl -s -X POST "http://127.0.0.1:8000/api/v1/jobs/00000000-0000-0000-0000-00000
   -d '{"artifact_root":"./.artifacts/mvp-jobs","reason":"api rerun","execute_stages":true,"prefer_ffmpeg":false,"allow_render_copy_fallback":true}'
 ```
 
+## Web 控制台
+
+仓库还提供了一个本地 Web 控制台，位于 `apps/web/`。它不是浏览器上传文件模式，而是基于本机路径工作：前端和 FastAPI 服务需要运行在同一台机器上，然后把本地视频/字幕路径粘贴进表单。
+
+启动 API：
+
+```bash
+python -m uvicorn apps.api.main:app --reload
+```
+
+启动前端：
+
+```bash
+cd apps/web
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+然后打开 `http://127.0.0.1:5173`。
+
+说明：
+
+- 页头支持英文 / 中文界面切换
+- 表单直接暴露了 `ASR Model = medium`，方便中文高精度 ASR 场景
+- 如果填写了 `Subtitle Path`，任务会直接导入外挂字幕，而不会实际走 ASR 提取
+
+英文界面首页：
+
+![Web 控制台英文首页](./docs/screenshots/web-console-en-home.png)
+
+中文界面完成态：
+
+![Web 控制台中文完成态](./docs/screenshots/web-console-zh-complete.png)
+
 ## Artifact 布局
 
 任务目录 `<artifact_root>/<job_id>/` 当前会生成：
