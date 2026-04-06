@@ -8,7 +8,6 @@ import {
   FileVideo,
   FolderOpen,
   Globe,
-  Languages,
   LoaderCircle,
   Mic2,
   Play,
@@ -16,7 +15,6 @@ import {
   Search,
   Server,
   ShieldAlert,
-  Sparkles,
   Upload,
   Volume2,
   Waves,
@@ -99,6 +97,7 @@ type JobTarget = {
 } | null;
 
 type SubmissionPhase = 'idle' | 'uploading' | 'queueing';
+type WorkspacePage = 'create' | 'pipeline' | 'history' | 'activity';
 
 type StageView = {
   stage: (typeof STAGE_SEQUENCE)[number];
@@ -154,6 +153,7 @@ function App() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [pickingComposerDirectory, setPickingComposerDirectory] = useState(false);
   const [pickingHistoryDirectory, setPickingHistoryDirectory] = useState(false);
+  const [currentPage, setCurrentPage] = useState<WorkspacePage>('create');
 
   const { data: activeData, isLoading: activeLoading, error: activeError } =
     useJobPolling(activeTarget, t.errors.loadJobFailed);
@@ -234,6 +234,45 @@ function App() {
       : form.videoPath.trim().length > 0;
   const isSubmitting = submissionPhase !== 'idle';
   const recentStageRuns = [...currentStageRuns].slice(-7).reverse();
+  const navigationItems = [
+    {
+      key: 'create',
+      label: t.navigation.create,
+      description: t.navigation.createHint,
+      icon: <FileUp className="h-4 w-4" />,
+    },
+    {
+      key: 'pipeline',
+      label: t.navigation.pipeline,
+      description: t.navigation.pipelineHint,
+      icon: <Workflow className="h-4 w-4" />,
+    },
+    {
+      key: 'history',
+      label: t.navigation.history,
+      description: t.navigation.historyHint,
+      icon: <RefreshCw className="h-4 w-4" />,
+    },
+    {
+      key: 'activity',
+      label: t.navigation.activity,
+      description: t.navigation.activityHint,
+      icon: <Clock3 className="h-4 w-4" />,
+    },
+  ] as const satisfies ReadonlyArray<{
+    key: WorkspacePage;
+    label: string;
+    description: string;
+    icon: ReactNode;
+  }>;
+  const pageCopy =
+    currentPage === 'create'
+      ? { title: t.pageHeaders.createTitle, subtitle: t.pageHeaders.createSubtitle }
+      : currentPage === 'pipeline'
+        ? { title: t.pageHeaders.pipelineTitle, subtitle: t.pageHeaders.pipelineSubtitle }
+        : currentPage === 'history'
+          ? { title: t.pageHeaders.historyTitle, subtitle: t.pageHeaders.historySubtitle }
+          : { title: t.pageHeaders.activityTitle, subtitle: t.pageHeaders.activitySubtitle };
 
   const patchForm = <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
     setForm((current) => ({
@@ -381,6 +420,7 @@ function App() {
         });
         setHistoryRoot(response.job.artifact_root);
         setHistoryQuery(response.job.id);
+        setCurrentPage('pipeline');
       });
       refreshHistory();
     } catch (error) {
@@ -399,53 +439,706 @@ function App() {
   const handleSelectJob = (jobId: string, artifactRoot: string) => {
     startTransition(() => {
       setActiveTarget({ jobId, artifactRoot });
+      setCurrentPage('pipeline');
     });
   };
 
-  return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#ffffff_0%,#f5f5f2_55%,#efefe8_100%)] text-[#171717] selection:bg-black/10">
-      <header className="sticky top-0 z-20 border-b border-black/5 bg-white/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black shadow-[0_16px_40px_-18px_rgba(0,0,0,0.55)]">
-              <Play className="ml-0.5 h-4 w-4 text-white" />
-            </div>
+  const composerPanel = (
+    <ShellCard
+      title={t.composer.title}
+      subtitle={t.composer.subtitle}
+      icon={<FileUp className="h-5 w-5 text-gray-400" />}
+    >
+      <div className="mb-5 flex flex-wrap gap-2">
+        <ModePill
+          active={submissionMode === 'upload'}
+          onClick={() => setSubmissionMode('upload')}
+          label={t.composer.uploadMode}
+          testId="mode-upload"
+        />
+        <ModePill
+          active={submissionMode === 'path'}
+          onClick={() => setSubmissionMode('path')}
+          label={t.composer.pathMode}
+          testId="mode-path"
+        />
+      </div>
+
+      {submissionMode === 'upload' ? (
+        <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <UploadDropzone
+              title={t.upload.videoTitle}
+              helper={t.upload.emptyVideo}
+              file={uploadFiles.video}
+              uploadedAsset={uploadedAssets.video}
+              progress={uploadProgress.video}
+              isDragging={uploadDragging === 'video'}
+              onDragOver={handleDragOver('video')}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop('video')}
+              onChange={(file) => handleUploadSelection('video', file)}
+              onClear={() => handleUploadSelection('video', null)}
+              buttonLabel={uploadFiles.video ? t.upload.replace : t.upload.browse}
+              testId="upload-video-input"
+            />
+            <UploadDropzone
+              title={`${t.upload.subtitleTitle} · ${t.upload.optional}`}
+              helper={t.upload.emptySubtitle}
+              file={uploadFiles.subtitle}
+              uploadedAsset={uploadedAssets.subtitle}
+              progress={uploadProgress.subtitle}
+              isDragging={uploadDragging === 'subtitle'}
+              onDragOver={handleDragOver('subtitle')}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop('subtitle')}
+              onChange={(file) => handleUploadSelection('subtitle', file)}
+              onClear={() => handleUploadSelection('subtitle', null)}
+              buttonLabel={uploadFiles.subtitle ? t.upload.replace : t.upload.browse}
+              testId="upload-subtitle-input"
+            />
+          </div>
+          <p className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-600">
+            {t.upload.helper}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <Field
+            label={t.paths.videoPath}
+            icon={<FolderOpen className="h-4 w-4 text-gray-400" />}
+          >
+            <input
+              data-testid="input-video-path"
+              value={form.videoPath}
+              onChange={(event) => patchForm('videoPath', event.target.value)}
+              placeholder={t.paths.videoPlaceholder}
+              className={inputClassName}
+            />
+          </Field>
+          <Field
+            label={`${t.paths.subtitlePath} · ${t.upload.optional}`}
+            icon={<FolderOpen className="h-4 w-4 text-gray-400" />}
+          >
+            <input
+              data-testid="input-subtitle-path"
+              value={form.subtitlePath}
+              onChange={(event) => patchForm('subtitlePath', event.target.value)}
+              placeholder={t.paths.subtitlePlaceholder}
+              className={inputClassName}
+            />
+          </Field>
+          <p className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-600">
+            {t.paths.helper}
+          </p>
+        </div>
+      )}
+
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <Field
+          label={t.composer.artifactRoot}
+          icon={<FolderOpen className="h-4 w-4 text-gray-400" />}
+        >
+          <DirectoryInput
+            inputTestId="input-artifact-root"
+            buttonTestId="button-select-artifact-root"
+            value={form.artifactRoot}
+            onChange={(value) => patchForm('artifactRoot', value)}
+            onPick={() => void handlePickDirectory('composer')}
+            buttonLabel={
+              pickingComposerDirectory
+                ? t.actions.selectingDirectory
+                : t.actions.chooseDirectory
+            }
+            disabled={pickingComposerDirectory}
+          />
+        </Field>
+        <Field
+          label={t.composer.sourceLanguage}
+          icon={<Globe className="h-4 w-4 text-gray-400" />}
+        >
+          <select
+            data-testid="select-source-language"
+            value={form.sourceLanguage}
+            onChange={(event) => patchForm('sourceLanguage', event.target.value)}
+            className={inputClassName}
+          >
+            <option value="zh">{t.languageNames.zh}</option>
+            <option value="en">{t.languageNames.en}</option>
+            <option value="ja">{t.languageNames.ja}</option>
+          </select>
+        </Field>
+        <Field
+          label={t.composer.targetLanguage}
+          icon={<Globe className="h-4 w-4 text-gray-400" />}
+        >
+          <select
+            data-testid="select-target-language"
+            value={form.targetLanguage}
+            onChange={(event) => patchForm('targetLanguage', event.target.value)}
+            className={inputClassName}
+          >
+            <option value="en">{t.languageNames.en}</option>
+            <option value="zh">{t.languageNames.zh}</option>
+            <option value="ja">{t.languageNames.ja}</option>
+          </select>
+        </Field>
+        <Field
+          label={t.composer.asrModel}
+          icon={<Waves className="h-4 w-4 text-gray-400" />}
+        >
+          <select
+            data-testid="select-asr-model"
+            value={form.asrModel}
+            onChange={(event) => patchForm('asrModel', event.target.value)}
+            className={inputClassName}
+          >
+            <option value="small">{t.asrOptions.small}</option>
+            <option value="medium">{t.asrOptions.medium}</option>
+          </select>
+        </Field>
+        <Field
+          label={t.composer.voiceProfile}
+          icon={<Mic2 className="h-4 w-4 text-gray-400" />}
+        >
+          <select
+            data-testid="select-voice-profile"
+            value={form.voiceProfile}
+            onChange={(event) => patchForm('voiceProfile', event.target.value)}
+            className={inputClassName}
+          >
+            <option value="en_female_neutral_01">
+              {t.voiceProfiles.enFemaleNeutral01}
+            </option>
+            <option value="en_male_neutral_01">
+              {t.voiceProfiles.enMaleNeutral01}
+            </option>
+          </select>
+        </Field>
+        <Field
+          label={t.composer.mixMode}
+          icon={<Volume2 className="h-4 w-4 text-gray-400" />}
+        >
+          <select
+            data-testid="select-mix-mode"
+            value={form.mixMode}
+            onChange={(event) => patchForm('mixMode', event.target.value)}
+            className={inputClassName}
+          >
+            <option value="duck">{t.mixModes.duck}</option>
+            <option value="replace">{t.mixModes.replace}</option>
+          </select>
+        </Field>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <ToggleTile
+          title={t.settings.preferFfmpegTitle}
+          body={t.settings.preferFfmpegBody}
+          checked={form.preferFfmpeg}
+          onChange={(checked) => patchForm('preferFfmpeg', checked)}
+        />
+        <ToggleTile
+          title={t.settings.allowFallbackTitle}
+          body={t.settings.allowFallbackBody}
+          checked={form.allowRenderCopyFallback}
+          onChange={(checked) => patchForm('allowRenderCopyFallback', checked)}
+        />
+      </div>
+
+      <div className="mt-5 space-y-3">
+        <InfoStrip>{t.settings.asrHint}</InfoStrip>
+        {showHighAccuracyHint ? <InfoStrip>{t.settings.asrHintMedium}</InfoStrip> : null}
+        {subtitleOverridesAsr ? <InfoStrip>{t.settings.sidecarHint}</InfoStrip> : null}
+        {invalidRenderConfig ? <Banner message={t.settings.renderWarning} /> : null}
+        {submitError ? <Banner message={submitError} /> : null}
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
+        <div className="rounded-[24px] border border-gray-200 bg-gray-50 p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-800">
+            <Upload className="h-4 w-4 text-gray-400" />
+            {t.composer.uploadProgress}
+          </div>
+          <div className="space-y-3 text-sm text-gray-600">
+            <ProgressLine
+              label={t.upload.videoTitle}
+              value={uploadProgress.video}
+              fallbackLabel={t.common.uploadPending}
+            />
+            <ProgressLine
+              label={t.upload.subtitleTitle}
+              value={uploadProgress.subtitle}
+              fallbackLabel={t.common.uploadPending}
+            />
+            <p className="pt-2 text-xs text-gray-500">
+              {submissionPhase === 'uploading'
+                ? t.actions.uploading
+                : submissionPhase === 'queueing'
+                  ? t.actions.queueing
+                  : t.pipeline.waiting}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-gray-200 bg-white p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-800">
+            <Server className="h-4 w-4 text-gray-400" />
+            {t.composer.selectedAssets}
+          </div>
+          <div className="space-y-3">
+            <PreparedInputRow
+              label={t.upload.videoTitle}
+              value={
+                uploadedAssets.video?.path ??
+                (submissionMode === 'path'
+                  ? form.videoPath.trim() || t.common.uploadPending
+                  : uploadFiles.video?.name || t.common.uploadPending)
+              }
+            />
+            <PreparedInputRow
+              label={t.upload.subtitleTitle}
+              value={
+                uploadedAssets.subtitle?.path ??
+                (submissionMode === 'path'
+                  ? form.subtitlePath.trim() || t.common.none
+                  : uploadFiles.subtitle?.name || t.common.none)
+              }
+            />
+          </div>
+        </div>
+      </div>
+
+      <button
+        data-testid="button-start-processing"
+        type="button"
+        onClick={handleCreateJob}
+        disabled={isSubmitting || !readyForSubmit || invalidRenderConfig}
+        className={`mt-6 flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition ${
+          isSubmitting || !readyForSubmit || invalidRenderConfig
+            ? 'cursor-not-allowed bg-gray-100 text-gray-400'
+            : 'bg-black text-white shadow-[0_20px_44px_-20px_rgba(0,0,0,0.55)] hover:bg-gray-800'
+        }`}
+      >
+        {submissionPhase === 'uploading' || submissionPhase === 'queueing' ? (
+          <>
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+            {submissionPhase === 'uploading' ? t.actions.uploading : t.actions.queueing}
+          </>
+        ) : (
+          <>
+            {t.actions.startProcessing}
+            <ChevronRight className="h-4 w-4" />
+          </>
+        )}
+      </button>
+    </ShellCard>
+  );
+
+  const pipelinePanel = (
+    <ShellCard
+      title={t.pipeline.title}
+      subtitle={t.pipeline.subtitle}
+      icon={<Workflow className="h-5 w-5 text-gray-400" />}
+    >
+      {!currentJob && !activeLoading ? (
+        <EmptyState title={t.empty.noActiveTitle} body={t.empty.noActiveBody} />
+      ) : activeLoading && !currentJob ? (
+        <LoadingState label={t.errors.loadJobFailed} />
+      ) : activeError ? (
+        <Banner message={activeError} />
+      ) : currentJob ? (
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-sm uppercase tracking-[0.22em] text-gray-400">
-                {t.shell.console}
-              </p>
-              <h1 className="text-lg font-semibold tracking-tight">{t.shell.agent}</h1>
+              <div className="mb-2 flex items-center gap-2" data-testid="active-job-status-row">
+                <StatusPill
+                  status={currentJob.status}
+                  label={translateStatus(language, currentJob.status)}
+                />
+                {activeStageLabel ? (
+                  <span className="text-xs uppercase tracking-[0.18em] text-gray-400">
+                    {activeStageLabel}
+                  </span>
+                ) : null}
+              </div>
+              <h3 className="font-medium text-gray-900" data-testid="active-job-id">
+                {currentJob.id}
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">{currentJob.input.video}</p>
+            </div>
+            <button
+              type="button"
+              onClick={refreshHistory}
+              className="rounded-full border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900"
+            >
+              {t.actions.refresh}
+            </button>
+          </div>
+
+          <div className="rounded-[24px] border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-2 flex items-center justify-between gap-3 text-sm text-gray-600">
+              <span>{t.pipeline.overallProgress}</span>
+              <span className="font-medium text-gray-900">{progressPercent}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-white">
+              <div
+                className="h-2 rounded-full bg-black transition-all"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <KeyValue label={t.pipeline.currentStage} value={activeStageLabel ?? t.common.idle} />
+              <KeyValue
+                label={t.pipeline.createdFrom}
+                value={currentJob.input.subtitle ? 'subtitle' : 'audio/video'}
+              />
+              <KeyValue label={t.pipeline.artifactRoot} value={currentJob.artifact_root} mono />
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden items-center gap-3 lg:flex">
-              <MetricBadge label={t.metrics.jobs} value={String(historyMetrics.total)} />
-              <MetricBadge
-                label={t.metrics.running}
-                value={String(historyMetrics.running)}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {stageViews.map((stageView) => (
+              <StageTile
+                key={stageView.stage}
+                stageView={stageView}
+                language={language}
+                waitingLabel={t.pipeline.waiting}
+                durationLabel={t.pipeline.duration}
+                attemptsLabel={t.pipeline.stageAttempts}
+                inProgressLabel={t.pipeline.inProgress}
+                notAvailableLabel={t.common.notAvailable}
               />
-              <MetricBadge
-                label={t.metrics.attention}
-                value={String(historyMetrics.attention)}
-              />
+            ))}
+          </div>
+
+          {currentJob.error_message ? (
+            <Banner message={`${t.pipeline.failedMessage}: ${currentJob.error_message}`} />
+          ) : null}
+        </div>
+      ) : (
+        <EmptyState title={t.empty.noActiveTitle} body={t.empty.noActiveBody} />
+      )}
+    </ShellCard>
+  );
+
+  const insightsPanel = (
+    <ShellCard
+      title={t.insights.title}
+      subtitle={t.insights.subtitle}
+      icon={<FileText className="h-5 w-5 text-gray-400" />}
+    >
+      {!currentJob ? (
+        <EmptyState title={t.empty.noPipelineTitle} body={t.empty.noPipelineBody} compact />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+          <div className="space-y-4">
+            <div
+              className="rounded-[24px] border border-gray-200 bg-white p-4"
+              data-testid="qa-summary"
+            >
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-800">
+                <ShieldAlert className="h-4 w-4 text-gray-400" />
+                {t.insights.qaSummary}
+              </div>
+              {currentQa ? (
+                <div className="space-y-3">
+                  <InsightMetric
+                    label={t.insights.segmentsChecked}
+                    value={String(currentQa.segment_count)}
+                  />
+                  <InsightMetric
+                    label={t.insights.overrunRatio}
+                    value={`${Math.round(currentQa.overrun_ratio * 100)}%`}
+                  />
+                  <InsightMetric
+                    label={t.insights.blockingReasons}
+                    value={
+                      currentQa.blocking_reasons.length > 0
+                        ? currentQa.blocking_reasons.join(', ')
+                        : t.common.none
+                    }
+                  />
+                </div>
+              ) : (
+                <p className="text-sm leading-6 text-gray-500">{t.insights.noQa}</p>
+              )}
             </div>
 
-            <div className="rounded-full border border-black/5 bg-white p-1 shadow-sm">
-              <div className="flex items-center gap-1">
-                <span className="px-2 text-[11px] uppercase tracking-[0.18em] text-gray-400">
-                  {t.shell.interfaceLabel}
+            <div className="rounded-[24px] border border-gray-200 bg-gray-50 p-4">
+              <div className="mb-3 text-sm font-medium text-gray-800">{t.insights.logs}</div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <MiniMetric
+                  label={t.insights.stageRuns}
+                  value={String(activeData?.logs?.stage_runs.length ?? 0)}
+                />
+                <MiniMetric
+                  label={t.insights.logs}
+                  value={String(activeData?.logs?.log_files.length ?? 0)}
+                />
+                <MiniMetric
+                  label={t.insights.segmentReruns}
+                  value={String(activeData?.logs?.segment_reruns.length ?? 0)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-800">
+              <FileVideo className="h-4 w-4 text-gray-400" />
+              {t.insights.artifacts}
+            </div>
+            {currentArtifacts.length === 0 ? (
+              <EmptyState title={t.insights.artifacts} body={t.insights.noArtifacts} compact />
+            ) : (
+              <div className="space-y-3" data-testid="artifact-list">
+                {currentArtifacts.slice(-6).reverse().map((artifact) => (
+                  <ArtifactRow key={artifact.id} artifact={artifact} language={language} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </ShellCard>
+  );
+
+  const historyPanel = (
+    <ShellCard
+      title={t.history.title}
+      subtitle={t.history.subtitle}
+      icon={<RefreshCw className="h-5 w-5 text-gray-400" />}
+      action={
+        <button
+          type="button"
+          onClick={refreshHistory}
+          className="flex items-center gap-2 rounded-full border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          {t.actions.refresh}
+        </button>
+      }
+    >
+      <div className="grid gap-3 md:grid-cols-[1.2fr_0.9fr_auto]">
+        <DirectoryInput
+          inputTestId="input-history-artifact-root"
+          buttonTestId="button-select-history-root"
+          value={historyRoot}
+          onChange={setHistoryRoot}
+          onPick={() => void handlePickDirectory('history')}
+          buttonLabel={
+            pickingHistoryDirectory ? t.actions.selectingDirectory : t.actions.chooseDirectory
+          }
+          disabled={pickingHistoryDirectory}
+          placeholder={DEFAULT_FORM.artifactRoot}
+        />
+        <select
+          value={historyStatus}
+          onChange={(event) => setHistoryStatus(event.target.value as 'all' | JobStatus)}
+          className={inputClassName}
+        >
+          <option value="all">{t.historyStatuses.all}</option>
+          <option value="running">{t.historyStatuses.running}</option>
+          <option value="completed">{t.historyStatuses.completed}</option>
+          <option value="failed">{t.historyStatuses.failed}</option>
+          <option value="paused">{t.historyStatuses.paused}</option>
+          <option value="pending">{t.historyStatuses.pending}</option>
+          <option value="cancelled">{t.historyStatuses.cancelled}</option>
+        </select>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            value={historyQuery}
+            onChange={(event) => setHistoryQuery(event.target.value)}
+            className={`${inputClassName} pl-9`}
+            placeholder={t.history.searchPlaceholder}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <MiniMetric label={t.history.total} value={String(historyMetrics.total)} />
+        <MiniMetric label={t.history.completed} value={String(historyMetrics.completed)} />
+        <MiniMetric label={t.history.failedPaused} value={String(historyMetrics.attention)} />
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {historyLoading ? (
+          <LoadingState label={t.actions.refresh} compact />
+        ) : historyError ? (
+          <Banner message={historyError} />
+        ) : visibleJobs.length === 0 ? (
+          <EmptyState title={t.history.noJobsTitle} body={t.history.noJobsBody} compact />
+        ) : (
+          visibleJobs.slice(0, 8).map((job) => {
+            const isActive = activeTarget?.jobId === job.id;
+            const historyStageLabel = translateStage(language, job.current_stage, job.status);
+            return (
+              <button
+                key={job.id}
+                data-testid={`history-job-${job.id}`}
+                type="button"
+                onClick={() => handleSelectJob(job.id, job.artifact_root)}
+                className={`w-full rounded-[24px] border px-4 py-4 text-left transition ${
+                  isActive
+                    ? 'border-gray-300 bg-[#f5f5f1] text-gray-950'
+                    : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-[#fafaf8]'
+                }`}
+              >
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <StatusPill
+                    status={job.status}
+                    label={translateStatus(language, job.status)}
+                  />
+                  <span className={`text-xs ${isActive ? 'text-gray-500' : 'text-gray-400'}`}>
+                    {formatDateTimeForLanguage(job.updated_at, language)}
+                  </span>
+                </div>
+                <div className="font-medium">{job.id}</div>
+                <div className={`mt-1 text-sm ${isActive ? 'text-gray-600' : 'text-gray-500'}`}>
+                  {job.input.video}
+                </div>
+                <div
+                  className={`mt-3 flex items-center justify-between text-xs ${
+                    isActive ? 'text-gray-500' : 'text-gray-400'
+                  }`}
+                >
+                  <span>{job.pipeline.asr_model}</span>
+                  <span>{historyStageLabel ?? translateStatus(language, job.status)}</span>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </ShellCard>
+  );
+
+  const activityPanel = (
+    <ShellCard
+      title={t.activity.title}
+      subtitle={t.activity.subtitle}
+      icon={<Clock3 className="h-5 w-5 text-gray-400" />}
+    >
+      {recentStageRuns.length === 0 ? (
+        <EmptyState title={t.empty.noPipelineTitle} body={t.empty.noPipelineBody} compact />
+      ) : (
+        <div className="space-y-3">
+          {recentStageRuns.map((run) => (
+            <div key={run.id} className="rounded-[24px] border border-gray-200 bg-white px-4 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <StatusPill status={run.status} label={translateStatus(language, run.status)} />
+                    <span className="text-sm font-medium text-gray-900">
+                      {translateStage(language, run.stage_name) ?? run.stage_name}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    {t.pipeline.stageAttempts} {run.attempt} ·{' '}
+                    {formatDuration(run.duration_ms, t.common.notAvailable)}
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400">
+                  {run.finished_at
+                    ? formatDateTimeForLanguage(run.finished_at, language)
+                    : t.pipeline.inProgress}
                 </span>
+              </div>
+              {run.error_message ? <p className="mt-3 text-sm text-red-600">{run.error_message}</p> : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </ShellCard>
+  );
+
+  const content = (() => {
+    switch (currentPage) {
+      case 'create':
+        return composerPanel;
+      case 'pipeline':
+        return (
+          <div className="space-y-6">
+            {pipelinePanel}
+            {insightsPanel}
+          </div>
+        );
+      case 'history':
+        return historyPanel;
+      case 'activity':
+        return (
+          <div className="space-y-6">
+            {activityPanel}
+            {insightsPanel}
+          </div>
+        );
+      default:
+        return composerPanel;
+    }
+  })();
+
+  return (
+    <div className="min-h-screen bg-[#fbfbfa] text-[#171717] selection:bg-black/10">
+      <div className="mx-auto flex min-h-screen max-w-[1540px] gap-4 px-4 py-4 lg:px-6">
+        <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-[252px] shrink-0 overflow-hidden rounded-[28px] border border-gray-200 bg-white lg:flex lg:flex-col">
+          <div className="border-b border-gray-100 px-5 py-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-[#f7f7f4] text-black">
+                <Play className="ml-0.5 h-4 w-4" />
+              </div>
+              <div>
+                <h1 className="text-base font-semibold tracking-tight text-gray-950">{t.shell.agent}</h1>
+              </div>
+            </div>
+          </div>
+
+          <nav className="flex-1 overflow-y-auto px-3 py-4">
+            <div className="space-y-1.5">
+              {navigationItems.map((item) => (
+                <button
+                  key={item.key}
+                  data-testid={`nav-${item.key}`}
+                  type="button"
+                  onClick={() => setCurrentPage(item.key)}
+                  className={`flex w-full items-center gap-3 rounded-[16px] border px-4 py-3 text-left transition ${
+                    currentPage === item.key
+                      ? 'border-gray-200 bg-[#f4f4f1] text-gray-950'
+                      : 'border-transparent bg-transparent text-gray-500 hover:border-gray-100 hover:bg-[#f7f7f4] hover:text-gray-900'
+                  }`}
+                >
+                  <span
+                    className={`rounded-2xl p-2 ${
+                      currentPage === item.key
+                        ? 'border border-gray-200 bg-white'
+                        : 'bg-[#f5f5f2]'
+                    }`}
+                  >
+                    {item.icon}
+                  </span>
+                  <span className="text-sm font-medium">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          <div className="border-t border-gray-100 px-5 py-4">
+            <div className="mt-4 rounded-[18px] border border-gray-200 bg-[#fafaf8] p-2">
+              <div className="mb-2 px-3 pt-2 text-[11px] uppercase tracking-[0.18em] text-gray-400">
+                {t.shell.interfaceLabel}
+              </div>
+              <div className="flex items-center gap-1">
                 {(['en', 'zh'] as const).map((nextLanguage) => (
                   <button
                     key={nextLanguage}
                     data-testid={`ui-language-${nextLanguage}`}
                     type="button"
                     onClick={() => setLanguage(nextLanguage)}
-                    className={`rounded-full px-3 py-2 text-xs font-medium transition ${
+                    className={`flex-1 rounded-full px-3 py-2 text-xs font-medium transition ${
                       language === nextLanguage
                         ? 'bg-black text-white'
-                        : 'text-gray-500 hover:text-gray-900'
+                        : 'text-gray-500 hover:bg-white hover:text-gray-900'
                     }`}
                   >
                     {nextLanguage === 'en' ? 'EN' : '中文'}
@@ -454,718 +1147,67 @@ function App() {
               </div>
             </div>
           </div>
-        </div>
-      </header>
+        </aside>
 
-      <main className="mx-auto max-w-7xl px-6 py-10">
-        <section className="mb-8 grid gap-4 md:grid-cols-3">
-          <HeroTile
-            icon={<Upload className="h-4 w-4" />}
-            title={t.summary.uploadTitle}
-            body={t.summary.uploadBody}
-          />
-          <HeroTile
-            icon={<Workflow className="h-4 w-4" />}
-            title={t.summary.pipelineTitle}
-            body={t.summary.pipelineBody}
-          />
-          <HeroTile
-            icon={<Languages className="h-4 w-4" />}
-            title={t.summary.bilingualTitle}
-            body={t.summary.bilingualBody}
-          />
-        </section>
-
-        <section className="mb-8 rounded-[32px] border border-black/5 bg-white px-6 py-6 shadow-[0_40px_120px_-64px_rgba(0,0,0,0.4)]">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-900">
-            <Sparkles className="h-4 w-4 text-gray-500" />
-            {t.summary.title}
-          </div>
-          <p className="max-w-4xl text-sm leading-7 text-gray-600">{t.summary.body}</p>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[1.04fr_0.96fr]">
-          <ShellCard
-            title={t.composer.title}
-            subtitle={t.composer.subtitle}
-            icon={<FileUp className="h-5 w-5 text-gray-400" />}
-          >
-            <div className="mb-5 flex flex-wrap gap-2">
-              <ModePill
-                active={submissionMode === 'upload'}
-                onClick={() => setSubmissionMode('upload')}
-                label={t.composer.uploadMode}
-                testId="mode-upload"
-              />
-              <ModePill
-                active={submissionMode === 'path'}
-                onClick={() => setSubmissionMode('path')}
-                label={t.composer.pathMode}
-                testId="mode-path"
-              />
-            </div>
-
-            {submissionMode === 'upload' ? (
-              <div className="space-y-4">
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <UploadDropzone
-                    title={t.upload.videoTitle}
-                    helper={t.upload.emptyVideo}
-                    file={uploadFiles.video}
-                    uploadedAsset={uploadedAssets.video}
-                    progress={uploadProgress.video}
-                    isDragging={uploadDragging === 'video'}
-                    onDragOver={handleDragOver('video')}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop('video')}
-                    onChange={(file) => handleUploadSelection('video', file)}
-                    onClear={() => handleUploadSelection('video', null)}
-                    buttonLabel={uploadFiles.video ? t.upload.replace : t.upload.browse}
-                    testId="upload-video-input"
-                  />
-                  <UploadDropzone
-                    title={`${t.upload.subtitleTitle} · ${t.upload.optional}`}
-                    helper={t.upload.emptySubtitle}
-                    file={uploadFiles.subtitle}
-                    uploadedAsset={uploadedAssets.subtitle}
-                    progress={uploadProgress.subtitle}
-                    isDragging={uploadDragging === 'subtitle'}
-                    onDragOver={handleDragOver('subtitle')}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop('subtitle')}
-                    onChange={(file) => handleUploadSelection('subtitle', file)}
-                    onClear={() => handleUploadSelection('subtitle', null)}
-                    buttonLabel={uploadFiles.subtitle ? t.upload.replace : t.upload.browse}
-                    testId="upload-subtitle-input"
-                  />
-                </div>
-                <p className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-600">
-                  {t.upload.helper}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Field
-                  label={t.paths.videoPath}
-                  icon={<FolderOpen className="h-4 w-4 text-gray-400" />}
-                >
-                  <input
-                    data-testid="input-video-path"
-                    value={form.videoPath}
-                    onChange={(event) => patchForm('videoPath', event.target.value)}
-                    placeholder={t.paths.videoPlaceholder}
-                    className={inputClassName}
-                  />
-                </Field>
-                <Field
-                  label={`${t.paths.subtitlePath} · ${t.upload.optional}`}
-                  icon={<FolderOpen className="h-4 w-4 text-gray-400" />}
-                >
-                  <input
-                    data-testid="input-subtitle-path"
-                    value={form.subtitlePath}
-                    onChange={(event) => patchForm('subtitlePath', event.target.value)}
-                    placeholder={t.paths.subtitlePlaceholder}
-                    className={inputClassName}
-                  />
-                </Field>
-                <p className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-600">
-                  {t.paths.helper}
-                </p>
-              </div>
-            )}
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <Field
-                label={t.composer.artifactRoot}
-                icon={<FolderOpen className="h-4 w-4 text-gray-400" />}
-              >
-                <DirectoryInput
-                  inputTestId="input-artifact-root"
-                  buttonTestId="button-select-artifact-root"
-                  value={form.artifactRoot}
-                  onChange={(value) => patchForm('artifactRoot', value)}
-                  onPick={() => void handlePickDirectory('composer')}
-                  buttonLabel={
-                    pickingComposerDirectory
-                      ? t.actions.selectingDirectory
-                      : t.actions.chooseDirectory
-                  }
-                  disabled={pickingComposerDirectory}
-                />
-              </Field>
-              <Field
-                label={t.composer.sourceLanguage}
-                icon={<Globe className="h-4 w-4 text-gray-400" />}
-              >
-                <select
-                  data-testid="select-source-language"
-                  value={form.sourceLanguage}
-                  onChange={(event) => patchForm('sourceLanguage', event.target.value)}
-                  className={inputClassName}
-                >
-                  <option value="zh">{t.languageNames.zh}</option>
-                  <option value="en">{t.languageNames.en}</option>
-                  <option value="ja">{t.languageNames.ja}</option>
-                </select>
-              </Field>
-              <Field
-                label={t.composer.targetLanguage}
-                icon={<Globe className="h-4 w-4 text-gray-400" />}
-              >
-                <select
-                  data-testid="select-target-language"
-                  value={form.targetLanguage}
-                  onChange={(event) => patchForm('targetLanguage', event.target.value)}
-                  className={inputClassName}
-                >
-                  <option value="en">{t.languageNames.en}</option>
-                  <option value="zh">{t.languageNames.zh}</option>
-                  <option value="ja">{t.languageNames.ja}</option>
-                </select>
-              </Field>
-              <Field
-                label={t.composer.asrModel}
-                icon={<Waves className="h-4 w-4 text-gray-400" />}
-              >
-                <select
-                  data-testid="select-asr-model"
-                  value={form.asrModel}
-                  onChange={(event) => patchForm('asrModel', event.target.value)}
-                  className={inputClassName}
-                >
-                  <option value="small">{t.asrOptions.small}</option>
-                  <option value="medium">{t.asrOptions.medium}</option>
-                </select>
-              </Field>
-              <Field
-                label={t.composer.voiceProfile}
-                icon={<Mic2 className="h-4 w-4 text-gray-400" />}
-              >
-                <select
-                  data-testid="select-voice-profile"
-                  value={form.voiceProfile}
-                  onChange={(event) => patchForm('voiceProfile', event.target.value)}
-                  className={inputClassName}
-                >
-                  <option value="en_female_neutral_01">
-                    {t.voiceProfiles.enFemaleNeutral01}
-                  </option>
-                  <option value="en_male_neutral_01">
-                    {t.voiceProfiles.enMaleNeutral01}
-                  </option>
-                </select>
-              </Field>
-              <Field
-                label={t.composer.mixMode}
-                icon={<Volume2 className="h-4 w-4 text-gray-400" />}
-              >
-                <select
-                  data-testid="select-mix-mode"
-                  value={form.mixMode}
-                  onChange={(event) => patchForm('mixMode', event.target.value)}
-                  className={inputClassName}
-                >
-                  <option value="duck">{t.mixModes.duck}</option>
-                  <option value="replace">{t.mixModes.replace}</option>
-                </select>
-              </Field>
-            </div>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <ToggleTile
-                title={t.settings.preferFfmpegTitle}
-                body={t.settings.preferFfmpegBody}
-                checked={form.preferFfmpeg}
-                onChange={(checked) => patchForm('preferFfmpeg', checked)}
-              />
-              <ToggleTile
-                title={t.settings.allowFallbackTitle}
-                body={t.settings.allowFallbackBody}
-                checked={form.allowRenderCopyFallback}
-                onChange={(checked) => patchForm('allowRenderCopyFallback', checked)}
-              />
-            </div>
-
-            <div className="mt-5 space-y-3">
-              <InfoStrip>{t.settings.asrHint}</InfoStrip>
-              {showHighAccuracyHint ? <InfoStrip>{t.settings.asrHintMedium}</InfoStrip> : null}
-              {subtitleOverridesAsr ? <InfoStrip>{t.settings.sidecarHint}</InfoStrip> : null}
-              {invalidRenderConfig ? (
-                <Banner message={t.settings.renderWarning} />
-              ) : null}
-              {submitError ? <Banner message={submitError} /> : null}
-            </div>
-
-            <div className="mt-6 grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
-              <div className="rounded-[24px] border border-gray-200 bg-gray-50 p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-800">
-                  <Upload className="h-4 w-4 text-gray-400" />
-                  {t.composer.uploadProgress}
-                </div>
-                <div className="space-y-3 text-sm text-gray-600">
-                  <ProgressLine
-                    label={t.upload.videoTitle}
-                    value={uploadProgress.video}
-                    fallbackLabel={t.common.uploadPending}
-                  />
-                  <ProgressLine
-                    label={t.upload.subtitleTitle}
-                    value={uploadProgress.subtitle}
-                    fallbackLabel={t.common.uploadPending}
-                  />
-                  <p className="pt-2 text-xs text-gray-500">
-                    {submissionPhase === 'uploading'
-                      ? t.actions.uploading
-                      : submissionPhase === 'queueing'
-                        ? t.actions.queueing
-                        : t.pipeline.waiting}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-gray-200 bg-white p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-800">
-                  <Server className="h-4 w-4 text-gray-400" />
-                  {t.composer.selectedAssets}
-                </div>
-                <div className="space-y-3">
-                  <PreparedInputRow
-                    label={t.upload.videoTitle}
-                    value={
-                      uploadedAssets.video?.path ??
-                      (submissionMode === 'path'
-                        ? form.videoPath.trim() || t.common.uploadPending
-                        : uploadFiles.video?.name || t.common.uploadPending)
-                    }
-                  />
-                  <PreparedInputRow
-                    label={t.upload.subtitleTitle}
-                    value={
-                      uploadedAssets.subtitle?.path ??
-                      (submissionMode === 'path'
-                        ? form.subtitlePath.trim() || t.common.none
-                        : uploadFiles.subtitle?.name || t.common.none)
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            <button
-              data-testid="button-start-processing"
-              type="button"
-              onClick={handleCreateJob}
-              disabled={isSubmitting || !readyForSubmit || invalidRenderConfig}
-              className={`mt-6 flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition ${
-                isSubmitting || !readyForSubmit || invalidRenderConfig
-                  ? 'cursor-not-allowed bg-gray-100 text-gray-400'
-                  : 'bg-black text-white shadow-[0_20px_44px_-20px_rgba(0,0,0,0.55)] hover:bg-gray-800'
-              }`}
-            >
-              {submissionPhase === 'uploading' || submissionPhase === 'queueing' ? (
-                <>
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                  {submissionPhase === 'uploading'
-                    ? t.actions.uploading
-                    : t.actions.queueing}
-                </>
-              ) : (
-                <>
-                  {t.actions.startProcessing}
-                  <ChevronRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          </ShellCard>
-
-          <div className="grid gap-6">
-            <ShellCard
-              title={t.pipeline.title}
-              subtitle={t.pipeline.subtitle}
-              icon={<Workflow className="h-5 w-5 text-gray-400" />}
-            >
-              {!currentJob && !activeLoading ? (
-                <EmptyState
-                  title={t.empty.noActiveTitle}
-                  body={t.empty.noActiveBody}
-                />
-              ) : activeLoading && !currentJob ? (
-                <LoadingState label={t.errors.loadJobFailed} />
-              ) : activeError ? (
-                <Banner message={activeError} />
-              ) : currentJob ? (
-                <div className="space-y-5">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <div
-                        className="mb-2 flex items-center gap-2"
-                        data-testid="active-job-status-row"
-                      >
-                        <StatusPill
-                          status={currentJob.status}
-                          label={translateStatus(language, currentJob.status)}
-                        />
-                        {activeStageLabel ? (
-                          <span className="text-xs uppercase tracking-[0.18em] text-gray-400">
-                            {activeStageLabel}
-                          </span>
-                        ) : null}
-                      </div>
-                      <h3
-                        className="font-medium text-gray-900"
-                        data-testid="active-job-id"
-                      >
-                        {currentJob.id}
-                      </h3>
-                      <p className="mt-1 text-sm text-gray-500">
-                        {currentJob.input.video}
-                      </p>
-                    </div>
+        <main className="min-w-0 flex-1">
+          <div className="rounded-[28px] border border-gray-200 bg-white">
+            <header className="border-b border-gray-100 px-6 py-6 sm:px-8">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3 lg:hidden">
+                <div className="flex flex-wrap gap-2">
+                  {navigationItems.map((item) => (
                     <button
+                      key={item.key}
                       type="button"
-                      onClick={refreshHistory}
-                      className="rounded-full border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900"
-                    >
-                      {t.actions.refresh}
-                    </button>
-                  </div>
-
-                  <div className="rounded-[24px] border border-gray-200 bg-gray-50 p-4">
-                    <div className="mb-2 flex items-center justify-between gap-3 text-sm text-gray-600">
-                      <span>{t.pipeline.overallProgress}</span>
-                      <span className="font-medium text-gray-900">{progressPercent}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-white">
-                      <div
-                        className="h-2 rounded-full bg-black transition-all"
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                    </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                      <KeyValue
-                        label={t.pipeline.currentStage}
-                        value={activeStageLabel ?? t.common.idle}
-                      />
-                      <KeyValue
-                        label={t.pipeline.createdFrom}
-                        value={currentJob.input.subtitle ? 'subtitle' : 'audio/video'}
-                      />
-                      <KeyValue
-                        label={t.pipeline.artifactRoot}
-                        value={currentJob.artifact_root}
-                        mono
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {stageViews.map((stageView) => (
-                      <StageTile
-                        key={stageView.stage}
-                        stageView={stageView}
-                        language={language}
-                        waitingLabel={t.pipeline.waiting}
-                        durationLabel={t.pipeline.duration}
-                        attemptsLabel={t.pipeline.stageAttempts}
-                        inProgressLabel={t.pipeline.inProgress}
-                        notAvailableLabel={t.common.notAvailable}
-                      />
-                    ))}
-                  </div>
-
-                  {currentJob.error_message ? (
-                    <Banner message={`${t.pipeline.failedMessage}: ${currentJob.error_message}`} />
-                  ) : null}
-                </div>
-              ) : (
-                <EmptyState title={t.empty.noActiveTitle} body={t.empty.noActiveBody} />
-              )}
-            </ShellCard>
-
-            <ShellCard
-              title={t.insights.title}
-              subtitle={t.insights.subtitle}
-              icon={<FileText className="h-5 w-5 text-gray-400" />}
-            >
-              {!currentJob ? (
-                <EmptyState
-                  title={t.empty.noPipelineTitle}
-                  body={t.empty.noPipelineBody}
-                  compact
-                />
-              ) : (
-                <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
-                  <div className="space-y-4">
-                    <div
-                      className="rounded-[24px] border border-gray-200 bg-white p-4"
-                      data-testid="qa-summary"
-                    >
-                      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-800">
-                        <ShieldAlert className="h-4 w-4 text-gray-400" />
-                        {t.insights.qaSummary}
-                      </div>
-                      {currentQa ? (
-                        <div className="space-y-3">
-                          <InsightMetric
-                            label={t.insights.segmentsChecked}
-                            value={String(currentQa.segment_count)}
-                          />
-                          <InsightMetric
-                            label={t.insights.overrunRatio}
-                            value={`${Math.round(currentQa.overrun_ratio * 100)}%`}
-                          />
-                          <InsightMetric
-                            label={t.insights.blockingReasons}
-                            value={
-                              currentQa.blocking_reasons.length > 0
-                                ? currentQa.blocking_reasons.join(', ')
-                                : t.common.none
-                            }
-                          />
-                        </div>
-                      ) : (
-                        <p className="text-sm leading-6 text-gray-500">{t.insights.noQa}</p>
-                      )}
-                    </div>
-
-                    <div className="rounded-[24px] border border-gray-200 bg-gray-50 p-4">
-                      <div className="mb-3 text-sm font-medium text-gray-800">
-                        {t.insights.logs}
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <MiniMetric
-                          label={t.insights.stageRuns}
-                          value={String(activeData?.logs?.stage_runs.length ?? 0)}
-                        />
-                        <MiniMetric
-                          label={t.insights.logs}
-                          value={String(activeData?.logs?.log_files.length ?? 0)}
-                        />
-                        <MiniMetric
-                          label={t.insights.segmentReruns}
-                          value={String(activeData?.logs?.segment_reruns.length ?? 0)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-800">
-                      <FileVideo className="h-4 w-4 text-gray-400" />
-                      {t.insights.artifacts}
-                    </div>
-                    {currentArtifacts.length === 0 ? (
-                      <EmptyState
-                        title={t.insights.artifacts}
-                        body={t.insights.noArtifacts}
-                        compact
-                      />
-                    ) : (
-                      <div className="space-y-3" data-testid="artifact-list">
-                        {currentArtifacts.slice(-6).reverse().map((artifact) => (
-                          <ArtifactRow
-                            key={artifact.id}
-                            artifact={artifact}
-                            language={language}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </ShellCard>
-          </div>
-        </section>
-
-        <section className="mt-6 grid gap-6 xl:grid-cols-[0.88fr_1.12fr]">
-          <ShellCard
-            title={t.history.title}
-            subtitle={t.history.subtitle}
-            icon={<RefreshCw className="h-5 w-5 text-gray-400" />}
-            action={
-              <button
-                type="button"
-                onClick={refreshHistory}
-                className="flex items-center gap-2 rounded-full border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                {t.actions.refresh}
-              </button>
-            }
-          >
-            <div className="grid gap-3 md:grid-cols-[1.2fr_0.9fr_auto]">
-              <DirectoryInput
-                inputTestId="input-history-artifact-root"
-                buttonTestId="button-select-history-root"
-                value={historyRoot}
-                onChange={setHistoryRoot}
-                onPick={() => void handlePickDirectory('history')}
-                buttonLabel={
-                  pickingHistoryDirectory
-                    ? t.actions.selectingDirectory
-                    : t.actions.chooseDirectory
-                }
-                disabled={pickingHistoryDirectory}
-                placeholder={DEFAULT_FORM.artifactRoot}
-              />
-              <select
-                value={historyStatus}
-                onChange={(event) =>
-                  setHistoryStatus(event.target.value as 'all' | JobStatus)
-                }
-                className={inputClassName}
-              >
-                <option value="all">{t.historyStatuses.all}</option>
-                <option value="running">{t.historyStatuses.running}</option>
-                <option value="completed">{t.historyStatuses.completed}</option>
-                <option value="failed">{t.historyStatuses.failed}</option>
-                <option value="paused">{t.historyStatuses.paused}</option>
-                <option value="pending">{t.historyStatuses.pending}</option>
-                <option value="cancelled">{t.historyStatuses.cancelled}</option>
-              </select>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={historyQuery}
-                  onChange={(event) => setHistoryQuery(event.target.value)}
-                  className={`${inputClassName} pl-9`}
-                  placeholder={t.history.searchPlaceholder}
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <MiniMetric label={t.history.total} value={String(historyMetrics.total)} />
-              <MiniMetric
-                label={t.history.completed}
-                value={String(historyMetrics.completed)}
-              />
-              <MiniMetric
-                label={t.history.failedPaused}
-                value={String(historyMetrics.attention)}
-              />
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {historyLoading ? (
-                <LoadingState label={t.actions.refresh} compact />
-              ) : historyError ? (
-                <Banner message={historyError} />
-              ) : visibleJobs.length === 0 ? (
-                <EmptyState
-                  title={t.history.noJobsTitle}
-                  body={t.history.noJobsBody}
-                  compact
-                />
-              ) : (
-                visibleJobs.slice(0, 8).map((job) => {
-                  const isActive = activeTarget?.jobId === job.id;
-                  const historyStageLabel = translateStage(
-                    language,
-                    job.current_stage,
-                    job.status
-                  );
-                  return (
-                    <button
-                      key={job.id}
-                      data-testid={`history-job-${job.id}`}
-                      type="button"
-                      onClick={() => handleSelectJob(job.id, job.artifact_root)}
-                      className={`w-full rounded-[24px] border px-4 py-4 text-left transition ${
-                        isActive
-                          ? 'border-black bg-black text-white'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      onClick={() => setCurrentPage(item.key)}
+                      className={`rounded-full px-3 py-2 text-xs font-medium transition ${
+                        currentPage === item.key
+                          ? 'bg-black text-white'
+                          : 'border border-gray-200 bg-white text-gray-600'
                       }`}
                     >
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <StatusPill
-                          status={job.status}
-                          label={translateStatus(language, job.status)}
-                          inverted={isActive}
-                        />
-                        <span
-                          className={`text-xs ${
-                            isActive ? 'text-white/70' : 'text-gray-400'
-                          }`}
-                        >
-                          {formatDateTimeForLanguage(job.updated_at, language)}
-                        </span>
-                      </div>
-                      <div className="font-medium">{job.id}</div>
-                      <div
-                        className={`mt-1 text-sm ${
-                          isActive ? 'text-white/80' : 'text-gray-500'
-                        }`}
-                      >
-                        {job.input.video}
-                      </div>
-                      <div
-                        className={`mt-3 flex items-center justify-between text-xs ${
-                          isActive ? 'text-white/70' : 'text-gray-400'
-                        }`}
-                      >
-                        <span>{job.pipeline.asr_model}</span>
-                        <span>{historyStageLabel ?? translateStatus(language, job.status)}</span>
-                      </div>
+                      {item.label}
                     </button>
-                  );
-                })
-              )}
-            </div>
-          </ShellCard>
-
-          <ShellCard
-            title={t.pipeline.title}
-            subtitle={t.pipeline.subtitle}
-            icon={<Clock3 className="h-5 w-5 text-gray-400" />}
-          >
-            {recentStageRuns.length === 0 ? (
-              <EmptyState
-                title={t.empty.noPipelineTitle}
-                body={t.empty.noPipelineBody}
-                compact
-              />
-            ) : (
-              <div className="space-y-3">
-                {recentStageRuns.map((run) => (
-                  <div
-                    key={run.id}
-                    className="rounded-[24px] border border-gray-200 bg-white px-4 py-4"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <StatusPill
-                            status={run.status}
-                            label={translateStatus(language, run.status)}
-                          />
-                          <span className="text-sm font-medium text-gray-900">
-                            {translateStage(language, run.stage_name) ?? run.stage_name}
-                          </span>
-                        </div>
-                        <div className="mt-2 text-xs text-gray-500">
-                          {t.pipeline.stageAttempts} {run.attempt} ·{' '}
-                          {formatDuration(run.duration_ms, t.common.notAvailable)}
-                        </div>
-                      </div>
-                      <span className="text-xs text-gray-400">
-                        {run.finished_at
-                          ? formatDateTimeForLanguage(run.finished_at, language)
-                          : t.pipeline.inProgress}
-                      </span>
-                    </div>
-                    {run.error_message ? (
-                      <p className="mt-3 text-sm text-red-600">{run.error_message}</p>
-                    ) : null}
+                  ))}
+                </div>
+                <div className="rounded-full border border-gray-200 bg-white p-1">
+                  <div className="flex items-center gap-1">
+                    {(['en', 'zh'] as const).map((nextLanguage) => (
+                      <button
+                        key={nextLanguage}
+                        data-testid={`ui-language-mobile-${nextLanguage}`}
+                        type="button"
+                        onClick={() => setLanguage(nextLanguage)}
+                        className={`rounded-full px-3 py-2 text-xs font-medium transition ${
+                          language === nextLanguage
+                            ? 'bg-black text-white'
+                            : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        {nextLanguage === 'en' ? 'EN' : '中文'}
+                      </button>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
-            )}
-          </ShellCard>
-        </section>
-      </main>
+
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-gray-950">
+                    {pageCopy.title}
+                  </h2>
+                </div>
+                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                  <span>{t.metrics.jobs} {historyMetrics.total}</span>
+                  <span>{t.metrics.running} {historyMetrics.running}</span>
+                  <span>{t.metrics.attention} {historyMetrics.attention}</span>
+                </div>
+              </div>
+            </header>
+
+            <div className="px-6 py-6 sm:px-8 sm:py-8">{content}</div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
@@ -1184,39 +1226,21 @@ function ShellCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[30px] border border-black/5 bg-white p-6 shadow-[0_28px_90px_-56px_rgba(0,0,0,0.35)]">
+    <section className="border-b border-gray-100 pb-8 last:border-b-0 last:pb-0">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-800">
             {icon}
             {title}
           </div>
-          <p className="max-w-2xl text-sm leading-6 text-gray-500">{subtitle}</p>
+          {subtitle ? (
+            <p className="max-w-2xl text-sm leading-6 text-gray-500">{subtitle}</p>
+          ) : null}
         </div>
         {action}
       </div>
       {children}
     </section>
-  );
-}
-
-function HeroTile({
-  icon,
-  title,
-  body,
-}: {
-  icon: ReactNode;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="rounded-[24px] border border-black/5 bg-white/85 px-5 py-4 shadow-[0_18px_70px_-50px_rgba(0,0,0,0.4)]">
-      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-gray-800">
-        {icon}
-        {title}
-      </div>
-      <p className="text-sm leading-6 text-gray-500">{body}</p>
-    </div>
   );
 }
 
@@ -1238,8 +1262,8 @@ function ModePill({
       onClick={onClick}
       className={`rounded-full px-4 py-2.5 text-sm font-medium transition ${
         active
-          ? 'bg-black text-white shadow-[0_20px_40px_-20px_rgba(0,0,0,0.55)]'
-          : 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900'
+          ? 'bg-[#f3f3ef] text-gray-950'
+          : 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-[#fafaf8] hover:text-gray-900'
       }`}
     >
       {label}
@@ -1670,15 +1694,6 @@ function InsightMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
       <div className="text-[11px] uppercase tracking-[0.18em] text-gray-400">{label}</div>
       <div className="mt-1 text-sm text-gray-800">{value}</div>
-    </div>
-  );
-}
-
-function MetricBadge({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-full border border-black/5 bg-white px-4 py-2 text-right shadow-sm">
-      <div className="text-[11px] uppercase tracking-[0.22em] text-gray-400">{label}</div>
-      <div className="text-sm font-medium text-gray-900">{value}</div>
     </div>
   );
 }

@@ -48,12 +48,11 @@ try {
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30000 });
   await page.getByTestId('ui-language-zh').click();
   await page.getByText('任务创建器', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText('实时流水线', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
   screenshots.push(await shot('01-zh-home.png'));
 
   await page.getByTestId('ui-language-en').click();
   await page.getByText('Job Composer', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText('Live Pipeline', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByTestId('nav-pipeline').waitFor({ state: 'visible', timeout: 10000 });
   screenshots.push(await shot('02-en-home.png'));
 
   await page.getByTestId('input-artifact-root').fill(artifactRoot);
@@ -94,6 +93,7 @@ try {
   const qaSummary = (await page.getByTestId('qa-summary').textContent())?.trim() ?? '';
   const artifacts = await page.locator('[data-testid="artifact-list"] > *').allTextContents();
 
+  await page.getByTestId('nav-history').click();
   const historyLocator = page.getByTestId(`history-job-${jobId}`);
   await historyLocator.waitFor({ state: 'visible', timeout: 30000 });
   await historyLocator.click();
@@ -101,7 +101,6 @@ try {
   screenshots.push(await shot('04-en-job-complete.png'));
 
   await page.getByTestId('ui-language-zh').click();
-  await page.getByText('历史记录', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
   await page.getByText('任务观察', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
   const zhStatusRow =
     (await page.getByTestId('active-job-status-row').textContent())?.trim() ?? '';
@@ -109,7 +108,7 @@ try {
   screenshots.push(await shot('05-zh-job-complete.png'));
 
   await page.getByTestId('ui-language-en').click();
-  await page.getByText('History', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('Run Insights', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
 
   const result = {
     baseUrl,

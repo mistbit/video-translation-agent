@@ -8,16 +8,41 @@ type Copy = {
     console: string;
     agent: string;
     interfaceLabel: string;
+    workspaceLabel: string;
+    menuLabel: string;
   };
-  summary: {
-    title: string;
-    body: string;
-    uploadTitle: string;
-    uploadBody: string;
+  navigation: {
+    create: string;
+    createHint: string;
+    pipeline: string;
+    pipelineHint: string;
+    history: string;
+    historyHint: string;
+    activity: string;
+    activityHint: string;
+  };
+  pageHeaders: {
+    createTitle: string;
+    createSubtitle: string;
     pipelineTitle: string;
-    pipelineBody: string;
-    bilingualTitle: string;
-    bilingualBody: string;
+    pipelineSubtitle: string;
+    historyTitle: string;
+    historySubtitle: string;
+    activityTitle: string;
+    activitySubtitle: string;
+  };
+  sidebar: {
+    workspaceBody: string;
+    metricsLabel: string;
+    menuLabel: string;
+    activeJobLabel: string;
+    activeJobTitle: string;
+    activeJobIdle: string;
+    activeJobBody: string;
+    noActiveJob: string;
+    jobIdLabel: string;
+    inputLabel: string;
+    artifactRoot: string;
   };
   metrics: {
     jobs: string;
@@ -104,6 +129,10 @@ type Copy = {
     segmentReruns: string;
     noArtifacts: string;
   };
+  activity: {
+    title: string;
+    subtitle: string;
+  };
   history: {
     title: string;
     subtitle: string;
@@ -173,16 +202,42 @@ export const uiCopy: Record<UiLanguage, Copy> = {
       console: 'Operator Console',
       agent: 'VTL Agent',
       interfaceLabel: 'Interface',
+      workspaceLabel: 'Workspace',
+      menuLabel: 'Navigate',
     },
-    summary: {
-      title: 'Upload-first local dubbing control room',
-      body: 'Create jobs from browser uploads or local paths, watch each stage advance, and inspect artifacts without leaving the page.',
-      uploadTitle: 'Browser Uploads',
-      uploadBody: 'The frontend can now push video and subtitle files directly to the local API before queueing the job.',
-      pipelineTitle: 'Visual Pipeline',
-      pipelineBody: 'A stage-by-stage execution rail shows what is running, what finished, and exactly where a job failed.',
-      bilingualTitle: 'Bilingual UI',
-      bilingualBody: 'Switch the interface between English and Chinese without affecting the source or target language configuration.',
+    navigation: {
+      create: 'Create Job',
+      createHint: 'Upload inputs, tune settings, and queue a fresh run.',
+      pipeline: 'Pipeline',
+      pipelineHint: 'Follow the selected job through every stage.',
+      history: 'History',
+      historyHint: 'Browse prior runs under the active artifact root.',
+      activity: 'Activity',
+      activityHint: 'Inspect recent stage attempts and downstream output.',
+    },
+    pageHeaders: {
+      createTitle: 'Create and Queue',
+      createSubtitle: 'Prepare inputs, choose models, and launch a new background job.',
+      pipelineTitle: 'Pipeline Monitor',
+      pipelineSubtitle: 'Track the selected job stage by stage and inspect failure context.',
+      historyTitle: 'Run History',
+      historySubtitle: 'Browse recent jobs under the active artifact root and reopen any run.',
+      activityTitle: 'Run Activity',
+      activitySubtitle: 'Review recent stage attempts, QA snapshots, and output artifacts.',
+    },
+    sidebar: {
+      workspaceBody:
+        'Run local dubbing jobs from one place, with uploads, monitoring, and history stitched into a single operator workflow.',
+      metricsLabel: 'Live metrics',
+      menuLabel: 'Menu',
+      activeJobLabel: 'Pinned run',
+      activeJobTitle: 'Active job',
+      activeJobIdle: 'No job selected',
+      activeJobBody: 'Choose a run from history or queue a new one to keep its status pinned here.',
+      noActiveJob: 'Queue a run or reopen one from history to pin it here.',
+      jobIdLabel: 'Job ID',
+      inputLabel: 'Input video',
+      artifactRoot: 'Artifact root',
     },
     metrics: {
       jobs: 'Jobs',
@@ -269,6 +324,10 @@ export const uiCopy: Record<UiLanguage, Copy> = {
       segmentReruns: 'Segment reruns',
       noArtifacts: 'Artifacts will appear as stages persist outputs.',
     },
+    activity: {
+      title: 'Recent Activity',
+      subtitle: 'A reverse-chronological feed of stage attempts for the selected job.',
+    },
     history: {
       title: 'History',
       subtitle: 'Recent jobs under the current artifact root.',
@@ -351,16 +410,42 @@ export const uiCopy: Record<UiLanguage, Copy> = {
       console: '操作控制台',
       agent: 'VTL Agent',
       interfaceLabel: '界面语言',
+      workspaceLabel: '工作区',
+      menuLabel: '菜单',
     },
-    summary: {
-      title: '支持上传的本地视频处理控制台',
-      body: '既可以直接从浏览器上传文件，也可以继续使用本地路径，并在页面里观看每个阶段的执行进度与产物。',
-      uploadTitle: '浏览器上传',
-      uploadBody: '前端现在可以把视频和字幕文件直接上传到本地 API，然后再创建后台任务。',
-      pipelineTitle: '可视化流水线',
-      pipelineBody: '阶段执行轨道会明确显示当前运行到哪里、哪些阶段已完成、失败卡在什么节点。',
-      bilingualTitle: '中英双语界面',
-      bilingualBody: '界面语言可在中文和英文之间切换，不会影响源语言和目标语言配置。',
+    navigation: {
+      create: '创建任务',
+      createHint: '上传素材、调整参数，然后发起新的后台任务。',
+      pipeline: '流水线',
+      pipelineHint: '跟踪当前选中任务经过每一个阶段的状态。',
+      history: '历史记录',
+      historyHint: '浏览当前产物根目录下的历史任务。',
+      activity: '运行活动',
+      activityHint: '查看最近阶段尝试、QA 结果和下游产物。',
+    },
+    pageHeaders: {
+      createTitle: '创建并提交任务',
+      createSubtitle: '准备输入、选择模型参数，并把任务送入后台执行。',
+      pipelineTitle: '流水线监控',
+      pipelineSubtitle: '按阶段追踪当前任务，并快速定位失败上下文。',
+      historyTitle: '任务历史',
+      historySubtitle: '查看当前产物根目录下的最近任务，并重新打开任意一次运行。',
+      activityTitle: '运行活动',
+      activitySubtitle: '检查最近的阶段尝试、QA 摘要和产物输出。',
+    },
+    sidebar: {
+      workspaceBody:
+        '把上传、任务创建、监控和历史记录整合到一个本地操作台里，减少来回切换。',
+      metricsLabel: '实时指标',
+      menuLabel: '菜单',
+      activeJobLabel: '固定任务',
+      activeJobTitle: '当前任务',
+      activeJobIdle: '尚未选择任务',
+      activeJobBody: '可以从历史记录里选一个任务，或者直接提交新的运行，让状态固定显示在侧边栏。',
+      noActiveJob: '提交一个新任务，或者从历史记录里重新打开一个任务并固定在这里。',
+      jobIdLabel: '任务 ID',
+      inputLabel: '输入视频',
+      artifactRoot: '产物根目录',
     },
     metrics: {
       jobs: '任务数',
@@ -446,6 +531,10 @@ export const uiCopy: Record<UiLanguage, Copy> = {
       stageRuns: '阶段运行数',
       segmentReruns: '片段重跑数',
       noArtifacts: '每个阶段落盘后，对应产物会出现在这里。',
+    },
+    activity: {
+      title: '最近活动',
+      subtitle: '按时间倒序查看所选任务最近的阶段尝试记录。',
     },
     history: {
       title: '历史记录',
