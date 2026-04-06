@@ -22,12 +22,25 @@ class InProcessOrchestrator:
     def __init__(self, registry: StageRegistry):
         self.registry = registry
 
-    def run_job(self, job_spec: domain_models.JobSpec) -> domain_models.JobManifest:
+    def create_job_record(
+        self, job_spec: domain_models.JobSpec
+    ) -> domain_models.JobManifest:
         workspace = JobWorkspace(
             artifact_root=Path(job_spec.artifact_root), job_id=job_spec.id
         )
         store = LocalMetadataStore(workspace)
-        job = store.create_job(job_spec)
+        return store.create_job(job_spec)
+
+    def run_job(self, job_spec: domain_models.JobSpec) -> domain_models.JobManifest:
+        self.create_job_record(job_spec)
+        return self.run_existing_job(job_spec.id, job_spec.artifact_root)
+
+    def run_existing_job(
+        self, job_id: UUID, artifact_root: str
+    ) -> domain_models.JobManifest:
+        workspace = JobWorkspace(artifact_root=Path(artifact_root), job_id=job_id)
+        store = LocalMetadataStore(workspace)
+        job = store.load_job()
         return self._run_stages(
             job=job, store=store, workspace=workspace, stages=job.pipeline.stage_order
         )

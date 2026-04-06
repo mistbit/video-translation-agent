@@ -1,6 +1,10 @@
 import json
+import subprocess
+import sys
+import threading
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
+from os import PathLike
 
 from pydantic import BaseModel
 
@@ -15,6 +19,10 @@ from video_translation_agent.workspace import JobWorkspace
 
 
 class JobNotFoundError(FileNotFoundError):
+    pass
+
+
+class DirectorySelectionCancelled(RuntimeError):
     pass
 
 
@@ -34,6 +42,16 @@ class CreateJobRequest(BaseModel):
     burn_subtitles: bool | None = None
     prefer_ffmpeg: bool = True
     allow_render_copy_fallback: bool = True
+    run_async: bool = False
+
+
+class UploadAsset(BaseModel):
+    id: UUID
+    kind: str
+    filename: str
+    path: str
+    size_bytes: int
+    content_type: str | None = None
 
 
 class StageRerunRequest(BaseModel):
@@ -191,7 +209,52 @@ def create_job(request: CreateJobRequest) -> JobManifest:
         prefer_ffmpeg=request.prefer_ffmpeg,
         allow_render_copy_fallback=request.allow_render_copy_fallback,
     )
+    if request.run_async:
+        job = orchestrator.create_job_record(spec)
+        worker = threading.Thread(
+            target=_run_job_in_background,
+            kwargs={
+                "job_id": job.id,
+                "artifact_root": job.artifact_root,
+                "prefer_ffmpeg": request.prefer_ffmpeg,
+                "allow_render_copy_fallback": request.allow_render_copy_fallback,
+            },
+            daemon=True,
+            name=f"job-{job.id}",
+        )
+        worker.start()
+        return job
     return orchestrator.run_job(spec)
+
+
+def save_uploaded_input(
+    *,
+    artifact_root: str,
+    filename: str,
+    payload: bytes,
+    kind: str,
+    content_type: str | None,
+) -> UploadAsset:
+    safe_name = _sanitize_upload_filename(filename=filename, kind=kind)
+    upload_id = uuid4()
+    upload_dir = Path(artifact_root) / "_uploads" / str(upload_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    target = upload_dir / safe_name
+    target.write_bytes(payload)
+    return UploadAsset(
+        id=upload_id,
+        kind=kind,
+        filename=safe_name,
+        path=str(target),
+        size_bytes=target.stat().st_size,
+        content_type=content_type,
+    )
+
+
+def select_directory_path(*, initial_directory: str | None = None) -> str:
+    if sys.platform == "darwin":
+        return _select_directory_path_macos(initial_directory=initial_directory)
+    return _select_directory_path_tk(initial_directory=initial_directory)
 
 
 def rerun_stage(
@@ -268,3 +331,90 @@ def _build_orchestrator(*, prefer_ffmpeg: bool, allow_render_copy_fallback: bool
         )
     )
     return InProcessOrchestrator(registry=registry)
+
+
+def _run_job_in_background(
+    *,
+    job_id: UUID,
+    artifact_root: str,
+    prefer_ffmpeg: bool,
+    allow_render_copy_fallback: bool,
+) -> None:
+    orchestrator = _build_orchestrator(
+        prefer_ffmpeg=prefer_ffmpeg,
+        allow_render_copy_fallback=allow_render_copy_fallback,
+    )
+    orchestrator.run_existing_job(job_id=job_id, artifact_root=artifact_root)
+
+
+def _sanitize_upload_filename(*, filename: str, kind: str) -> str:
+    cleaned = Path(filename).name.strip()
+    if cleaned:
+        return cleaned
+    default_name = "video.bin" if kind == "video" else "subtitle.srt"
+    return default_name
+
+
+def _select_directory_path_macos(*, initial_directory: str | None) -> str:
+    script = ['set dialogPrompt to "Select artifact root"']
+    default_directory = _resolve_existing_directory(initial_directory)
+    if default_directory is None:
+        script.append("set chosenFolder to choose folder with prompt dialogPrompt")
+    else:
+        escaped = _escape_applescript_string(default_directory)
+        script.append(
+            'set chosenFolder to choose folder with prompt dialogPrompt default location '
+            f'POSIX file "{escaped}"'
+        )
+    script.append("POSIX path of chosenFolder")
+
+    command: list[str] = ["osascript"]
+    for line in script:
+        command.extend(["-e", line])
+
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        if "User canceled" in detail:
+            raise DirectorySelectionCancelled("Directory selection cancelled")
+        raise RuntimeError(detail or "Directory selection failed")
+
+    selected = result.stdout.strip()
+    if not selected:
+        raise RuntimeError("Directory selection returned an empty path")
+    return str(Path(selected))
+
+
+def _select_directory_path_tk(*, initial_directory: str | None) -> str:
+    from tkinter import Tk, filedialog
+
+    root = Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        selected = filedialog.askdirectory(
+            initialdir=_resolve_existing_directory(initial_directory),
+            title="Select artifact root",
+            mustexist=False,
+        )
+    finally:
+        root.destroy()
+
+    if not selected:
+        raise DirectorySelectionCancelled("Directory selection cancelled")
+    return str(Path(selected))
+
+
+def _resolve_existing_directory(initial_directory: str | None) -> str | None:
+    if not initial_directory:
+        return None
+    candidate = Path(initial_directory).expanduser()
+    if candidate.is_file():
+        candidate = candidate.parent
+    if not candidate.exists():
+        return None
+    return str(candidate)
+
+
+def _escape_applescript_string(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')

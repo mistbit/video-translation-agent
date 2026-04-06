@@ -8,6 +8,7 @@ import type {
   JobSummary,
   LogsPayload,
   QaPayload,
+  UploadedInputAsset,
 } from './types';
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
@@ -27,6 +28,25 @@ export function createJob(payload: CreateJobRequest): Promise<CreateJobPayload> 
     },
     body: JSON.stringify(payload),
   });
+}
+
+export async function selectDirectory(
+  initialDirectory?: string
+): Promise<string | null> {
+  const search = new URLSearchParams();
+  if (initialDirectory?.trim()) {
+    search.set('initial_directory', initialDirectory.trim());
+  }
+  const suffix = search.size > 0 ? `?${search.toString()}` : '';
+  const response = await fetch(`/api/v1/system/select-directory${suffix}`);
+  const envelope = (await response.json()) as ApiEnvelope<{ path: string }>;
+  if (response.ok && envelope.code === 0 && envelope.data === null) {
+    return null;
+  }
+  if (!response.ok || envelope.code !== 0 || envelope.data === null) {
+    throw new Error(envelope.message || 'Failed to select directory.');
+  }
+  return envelope.data.path;
 }
 
 export function listJobs(params: {
@@ -75,6 +95,9 @@ export async function getQa(
   if (response.status === 404) {
     return null;
   }
+  if (response.ok && envelope.code === 0 && envelope.data === null) {
+    return null;
+  }
   if (!response.ok || envelope.code !== 0 || envelope.data === null) {
     throw new Error(envelope.message || 'Failed to fetch QA report.');
   }
@@ -98,4 +121,53 @@ export async function getActiveJobBundle(
     logs,
     qa,
   };
+}
+
+export function uploadInput(
+  file: File,
+  params: {
+    artifactRoot: string;
+    kind: 'video' | 'subtitle';
+    onProgress?: (progress: number) => void;
+  }
+): Promise<UploadedInputAsset> {
+  const search = new URLSearchParams({
+    artifact_root: params.artifactRoot,
+    kind: params.kind,
+    filename: file.name,
+  });
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/v1/uploads?${search.toString()}`);
+    xhr.setRequestHeader('content-type', file.type || 'application/octet-stream');
+
+    xhr.upload.onprogress = (event) => {
+      if (!params.onProgress || !event.lengthComputable) {
+        return;
+      }
+      params.onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Upload request failed.'));
+    };
+
+    xhr.onload = () => {
+      try {
+        const envelope = JSON.parse(xhr.responseText) as ApiEnvelope<UploadedInputAsset>;
+        if (xhr.status < 200 || xhr.status >= 300 || envelope.code !== 0 || envelope.data === null) {
+          reject(new Error(envelope.message || 'Upload failed.'));
+          return;
+        }
+        resolve(envelope.data);
+      } catch (error) {
+        reject(
+          error instanceof Error ? error : new Error('Failed to parse upload response.')
+        );
+      }
+    };
+
+    xhr.send(file);
+  });
 }

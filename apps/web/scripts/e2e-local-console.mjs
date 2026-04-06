@@ -47,43 +47,52 @@ const screenshots = [];
 try {
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30000 });
   await page.getByTestId('ui-language-zh').click();
-  await page.getByText('新建任务', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText('当前任务', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('任务创建器', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('实时流水线', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
   screenshots.push(await shot('01-zh-home.png'));
 
   await page.getByTestId('ui-language-en').click();
-  await page.getByText('New Job', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText('Active Run', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('Job Composer', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('Live Pipeline', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
   screenshots.push(await shot('02-en-home.png'));
 
-  await page.getByTestId('input-video-path').fill(videoPath);
-  await page.getByTestId('input-subtitle-path').fill(subtitlePath);
   await page.getByTestId('input-artifact-root').fill(artifactRoot);
   await page.getByTestId('select-source-language').selectOption('zh');
   await page.getByTestId('select-target-language').selectOption('en');
   await page.getByTestId('select-asr-model').selectOption('medium');
   await page.getByTestId('select-voice-profile').selectOption('en_female_neutral_01');
   await page.getByTestId('select-mix-mode').selectOption('duck');
-  screenshots.push(await shot('03-en-form-filled.png'));
+  await page.getByTestId('upload-video-input').setInputFiles(videoPath);
+  if (subtitlePath) {
+    await page.getByTestId('upload-subtitle-input').setInputFiles(subtitlePath);
+  }
+  screenshots.push(await shot('03-en-upload-prepared.png'));
 
   await page.getByTestId('button-start-processing').click();
 
   const jobIdLocator = page.getByTestId('active-job-id');
   await jobIdLocator.waitFor({ state: 'visible', timeout: 60000 });
   await page.getByTestId('active-job-status-row').waitFor({ state: 'visible', timeout: 30000 });
-  await page.getByTestId('artifact-list').waitFor({ state: 'visible', timeout: 30000 });
-  await page.getByTestId('qa-summary').waitFor({ state: 'visible', timeout: 30000 });
+  await page.getByTestId('pipeline-stage-qa').waitFor({ state: 'visible', timeout: 30000 });
 
   const jobId = (await jobIdLocator.textContent())?.trim() ?? '';
-  const statusRow = (await page.getByTestId('active-job-status-row').textContent())?.trim() ?? '';
-  const qaSummary = (await page.getByTestId('qa-summary').textContent())?.trim() ?? '';
-  const artifacts = await page
-    .locator('[data-testid="artifact-list"] > *')
-    .allTextContents();
-
   if (!jobId) {
     throw new Error('Active job ID did not render.');
   }
+
+  await page.waitForFunction(
+    () => {
+      const statusRow = document.querySelector('[data-testid="active-job-status-row"]');
+      return statusRow?.textContent?.includes('Completed') || statusRow?.textContent?.includes('已完成');
+    },
+    { timeout: 60000 }
+  );
+  await page.getByTestId('artifact-list').waitFor({ state: 'visible', timeout: 30000 });
+  await page.getByTestId('qa-summary').waitFor({ state: 'visible', timeout: 30000 });
+
+  const statusRow = (await page.getByTestId('active-job-status-row').textContent())?.trim() ?? '';
+  const qaSummary = (await page.getByTestId('qa-summary').textContent())?.trim() ?? '';
+  const artifacts = await page.locator('[data-testid="artifact-list"] > *').allTextContents();
 
   const historyLocator = page.getByTestId(`history-job-${jobId}`);
   await historyLocator.waitFor({ state: 'visible', timeout: 30000 });
@@ -93,7 +102,7 @@ try {
 
   await page.getByTestId('ui-language-zh').click();
   await page.getByText('历史记录', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText('产物与 QA', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('任务观察', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
   const zhStatusRow =
     (await page.getByTestId('active-job-status-row').textContent())?.trim() ?? '';
   const zhQaSummary = (await page.getByTestId('qa-summary').textContent())?.trim() ?? '';

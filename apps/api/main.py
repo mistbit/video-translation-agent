@@ -1,10 +1,10 @@
+from fastapi import FastAPI, Request
 from uuid import UUID
-
-from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from video_translation_agent.api.services import (
     CreateJobRequest,
+    DirectorySelectionCancelled,
     JobNotFoundError,
     SegmentRerunRequest,
     StageRerunRequest,
@@ -14,6 +14,8 @@ from video_translation_agent.api.services import (
     get_job_logs,
     get_job_qa,
     list_jobs,
+    save_uploaded_input,
+    select_directory_path,
     rerun_segment,
     rerun_stage,
 )
@@ -42,6 +44,44 @@ def create_job_endpoint(request: CreateJobRequest):
         return _error_envelope(status_code=400, code=4001, message=str(exc))
 
     return ApiEnvelope(data={"job": job.model_dump(mode="json")})
+
+
+@app.post(f"{settings.api_prefix}/uploads")
+async def upload_input_endpoint(
+    request: Request,
+    artifact_root: str = settings.artifact_root,
+    kind: str = "video",
+    filename: str | None = None,
+):
+    try:
+        payload = await request.body()
+        if not payload:
+            raise ValueError("Upload payload is empty")
+        upload = save_uploaded_input(
+            artifact_root=artifact_root,
+            filename=filename
+            or request.headers.get("x-file-name")
+            or f"{kind}.bin",
+            payload=payload,
+            kind=kind,
+            content_type=request.headers.get("content-type"),
+        )
+    except Exception as exc:
+        return _error_envelope(status_code=400, code=4004, message=str(exc))
+
+    return ApiEnvelope(data=upload.model_dump(mode="json"))
+
+
+@app.get(f"{settings.api_prefix}/system/select-directory")
+def select_directory_endpoint(initial_directory: str | None = None):
+    try:
+        selected_path = select_directory_path(initial_directory=initial_directory)
+    except DirectorySelectionCancelled:
+        return ApiEnvelope[None](message="cancelled", data=None)
+    except Exception as exc:
+        return _error_envelope(status_code=400, code=4005, message=str(exc))
+
+    return ApiEnvelope(data={"path": selected_path})
 
 
 @app.get(f"{settings.api_prefix}/jobs")
@@ -144,8 +184,8 @@ def get_job_qa_endpoint(
         payload = get_job_qa(job_id=job_id, artifact_root=artifact_root)
     except JobNotFoundError as exc:
         return _error_envelope(status_code=404, code=4040, message=str(exc))
-    except FileNotFoundError as exc:
-        return _error_envelope(status_code=404, code=4041, message=str(exc))
+    except FileNotFoundError:
+        return ApiEnvelope[None](message="qa report pending", data=None)
 
     return ApiEnvelope(data=payload)
 

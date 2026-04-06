@@ -61,6 +61,15 @@ export type ArtifactPayload = {
   count: number;
 };
 
+export type UploadedInputAsset = {
+  id: string;
+  kind: string;
+  filename: string;
+  path: string;
+  size_bytes: number;
+  content_type: string | null;
+};
+
 export type StageRun = {
   id: string;
   stage_name: string;
@@ -125,6 +134,7 @@ export type CreateJobRequest = {
   mix_mode: string;
   prefer_ffmpeg: boolean;
   allow_render_copy_fallback: boolean;
+  run_async?: boolean;
 };
 
 export type CreateJobPayload = {
