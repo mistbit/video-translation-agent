@@ -8,7 +8,7 @@ type JobTarget = {
   artifactRoot: string;
 } | null;
 
-export function useJobPolling(target: JobTarget) {
+export function useJobPolling(target: JobTarget, loadErrorMessage: string) {
   const [data, setData] = useState<ActiveJobBundle | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export function useJobPolling(target: JobTarget) {
         setError(
           nextError instanceof Error
             ? nextError.message
-            : 'Failed to load job details.'
+            : loadErrorMessage
         );
       } finally {
         if (!cancelled) {
@@ -60,7 +60,7 @@ export function useJobPolling(target: JobTarget) {
         window.clearInterval(intervalId);
       }
     };
-  }, [target]);
+  }, [loadErrorMessage, target]);
 
   return { data, isLoading, error };
 }

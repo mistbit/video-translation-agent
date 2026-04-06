@@ -29,6 +29,15 @@ import {
 } from 'react';
 
 import { createJob, listJobs } from './api';
+import {
+  formatDateTimeForLanguage,
+  getInitialUiLanguage,
+  persistUiLanguage,
+  translateStage,
+  translateStatus,
+  uiCopy,
+  type UiLanguage,
+} from './i18n';
 import type {
   ActiveJobBundle,
   ArtifactItem,
@@ -70,6 +79,8 @@ const DEFAULT_FORM: FormState = {
 };
 
 function App() {
+  const [language, setLanguage] = useState<UiLanguage>(getInitialUiLanguage);
+  const t = uiCopy[language];
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
@@ -86,7 +97,11 @@ function App() {
   const [historyError, setHistoryError] = useState<string | null>(null);
 
   const { data: activeData, isLoading: activeLoading, error: activeError } =
-    useJobPolling(activeTarget);
+    useJobPolling(activeTarget, t.errors.loadJobFailed);
+
+  useEffect(() => {
+    persistUiLanguage(language);
+  }, [language]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,7 +123,7 @@ function App() {
           return;
         }
         setHistoryError(
-          error instanceof Error ? error.message : 'Failed to load job history.'
+          error instanceof Error ? error.message : t.errors.loadHistoryFailed
         );
       })
       .finally(() => {
@@ -120,7 +135,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [historyRefreshToken, historyRoot, historyStatus]);
+  }, [historyRefreshToken, historyRoot, historyStatus, t.errors.loadHistoryFailed]);
 
   const visibleJobs =
     history?.items.filter((job) => {
@@ -142,6 +157,7 @@ function App() {
   const currentQa = activeData?.qa?.report ?? null;
   const showHighAccuracyHint =
     form.sourceLanguage === 'zh' && form.asrModel === 'medium';
+  const subtitleOverridesAsr = form.subtitlePath.trim().length > 0;
 
   const handleFileReference = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -181,7 +197,7 @@ function App() {
 
   const handleCreateJob = async () => {
     if (!form.videoPath.trim()) {
-      setSubmitError('Input video path is required.');
+      setSubmitError(t.errors.videoRequired);
       return;
     }
 
@@ -214,7 +230,7 @@ function App() {
       refreshHistory();
     } catch (error) {
       setSubmitError(
-        error instanceof Error ? error.message : 'Failed to create job.'
+        error instanceof Error ? error.message : t.errors.createJobFailed
       );
     } finally {
       setIsSubmitting(false);
@@ -237,15 +253,42 @@ function App() {
             </div>
             <div>
               <p className="text-sm uppercase tracking-[0.22em] text-gray-400">
-                Local Console
+                {t.shell.console}
               </p>
-              <h1 className="text-lg font-semibold tracking-tight">VTL Agent</h1>
+              <h1 className="text-lg font-semibold tracking-tight">{t.shell.agent}</h1>
             </div>
           </div>
-          <div className="hidden items-center gap-3 md:flex">
-            <MetricBadge label="Jobs" value={String(historyMetrics.total)} />
-            <MetricBadge label="Running" value={String(historyMetrics.running)} />
-            <MetricBadge label="Paused" value={String(historyMetrics.paused)} />
+          <div className="flex items-center gap-3">
+            <div className="hidden items-center gap-3 md:flex">
+              <MetricBadge label={t.metrics.jobs} value={String(historyMetrics.total)} />
+              <MetricBadge
+                label={t.metrics.running}
+                value={String(historyMetrics.running)}
+              />
+              <MetricBadge label={t.metrics.paused} value={String(historyMetrics.paused)} />
+            </div>
+            <div className="rounded-full border border-black/5 bg-white p-1 shadow-sm">
+              <div className="flex items-center gap-1">
+                <span className="px-2 text-[11px] uppercase tracking-[0.18em] text-gray-400">
+                  {t.shell.interfaceLabel}
+                </span>
+                {(['en', 'zh'] as const).map((nextLanguage) => (
+                  <button
+                    key={nextLanguage}
+                    data-testid={`ui-language-${nextLanguage}`}
+                    type="button"
+                    onClick={() => setLanguage(nextLanguage)}
+                    className={`rounded-full px-3 py-2 text-xs font-medium transition ${
+                      language === nextLanguage
+                        ? 'bg-black text-white'
+                        : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    {nextLanguage === 'en' ? 'EN' : '中文'}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -254,25 +297,25 @@ function App() {
         <section className="mb-8 grid gap-4 md:grid-cols-3">
           <HeroTile
             icon={<Sparkles className="h-4 w-4" />}
-            title="Path-Based Jobs"
-            body="This frontend now mirrors the real backend contract: it creates jobs from local filesystem paths on the same machine."
+            title={t.hero.pathBasedJobsTitle}
+            body={t.hero.pathBasedJobsBody}
           />
           <HeroTile
             icon={<Waves className="h-4 w-4" />}
-            title="Chinese ASR Modes"
-            body="Use `small` for balanced local runs or `medium` for higher-accuracy subtitle extraction with tuned decoding."
+            title={t.hero.asrModesTitle}
+            body={t.hero.asrModesBody}
           />
           <HeroTile
             icon={<ShieldAlert className="h-4 w-4" />}
-            title="Operational Feedback"
-            body="Track stages, QA blocking reasons, artifacts, and recent runs without dropping back to the terminal."
+            title={t.hero.feedbackTitle}
+            body={t.hero.feedbackBody}
           />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <ConsoleCard
-            title="New Job"
-            subtitle="Create a real processing job using local file paths and backend-backed settings."
+            title={t.cards.newJobTitle}
+            subtitle={t.cards.newJobSubtitle}
             icon={<FileVideo className="h-5 w-5 text-gray-400" />}
           >
             <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -295,14 +338,13 @@ function App() {
                     )}
                   </div>
                   <p className="mb-1 font-medium text-gray-900">
-                    {selectedFileName ?? 'Reference a local file'}
+                    {selectedFileName ?? t.upload.title}
                   </p>
                   <p className="max-w-sm text-sm leading-6 text-gray-500">
-                    Browser file pickers do not expose a usable absolute path. Use this
-                    as a visual check, then paste the actual local path into the form.
+                    {t.upload.body}
                   </p>
                   <label className="mt-6 cursor-pointer rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800">
-                    Pick Reference File
+                    {t.upload.button}
                     <input
                       type="file"
                       accept="video/*"
@@ -312,39 +354,38 @@ function App() {
                   </label>
                 </div>
                 <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-                  Run this web app on the same machine as the FastAPI service. The API
-                  starts jobs from local paths, not uploaded browser blobs.
+                  {t.upload.sameMachine}
                 </div>
               </div>
 
               <div className="grid gap-4">
                 <Field
-                  label="Input Video Path"
+                  label={t.fields.inputVideoPath}
                   icon={<FolderOpen className="h-4 w-4 text-gray-400" />}
                 >
                   <input
                     data-testid="input-video-path"
                     value={form.videoPath}
                     onChange={(event) => patchForm('videoPath', event.target.value)}
-                    placeholder="/Users/you/Videos/source.mp4"
+                    placeholder={t.placeholders.videoPath}
                     className={inputClassName}
                   />
                 </Field>
                 <Field
-                  label="Subtitle Path"
-                  note="Optional"
+                  label={t.fields.subtitlePath}
+                  note={t.fields.optional}
                   icon={<FolderOpen className="h-4 w-4 text-gray-400" />}
                 >
                   <input
                     data-testid="input-subtitle-path"
                     value={form.subtitlePath}
                     onChange={(event) => patchForm('subtitlePath', event.target.value)}
-                    placeholder="/Users/you/Videos/source.srt"
+                    placeholder={t.placeholders.subtitlePath}
                     className={inputClassName}
                   />
                 </Field>
                 <Field
-                  label="Artifact Root"
+                  label={t.fields.artifactRoot}
                   icon={<FolderOpen className="h-4 w-4 text-gray-400" />}
                 >
                   <input
@@ -357,7 +398,7 @@ function App() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field
-                    label="Source Language"
+                    label={t.fields.sourceLanguage}
                     icon={<Globe className="h-4 w-4 text-gray-400" />}
                   >
                     <select
@@ -368,13 +409,13 @@ function App() {
                       }
                       className={inputClassName}
                     >
-                      <option value="zh">Chinese</option>
-                      <option value="en">English</option>
-                      <option value="ja">Japanese</option>
+                      <option value="zh">{t.languageNames.zh}</option>
+                      <option value="en">{t.languageNames.en}</option>
+                      <option value="ja">{t.languageNames.ja}</option>
                     </select>
                   </Field>
                   <Field
-                    label="Target Language"
+                    label={t.fields.targetLanguage}
                     icon={<Globe className="h-4 w-4 text-gray-400" />}
                   >
                     <select
@@ -385,16 +426,16 @@ function App() {
                       }
                       className={inputClassName}
                     >
-                      <option value="en">English</option>
-                      <option value="zh">Chinese</option>
-                      <option value="ja">Japanese</option>
+                      <option value="en">{t.languageNames.en}</option>
+                      <option value="zh">{t.languageNames.zh}</option>
+                      <option value="ja">{t.languageNames.ja}</option>
                     </select>
                   </Field>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field
-                    label="ASR Model"
+                    label={t.fields.asrModel}
                     icon={<Waves className="h-4 w-4 text-gray-400" />}
                   >
                     <select
@@ -403,12 +444,12 @@ function App() {
                       onChange={(event) => patchForm('asrModel', event.target.value)}
                       className={inputClassName}
                     >
-                      <option value="small">Small - Balanced default</option>
-                      <option value="medium">Medium - Higher accuracy</option>
+                      <option value="small">{t.asrOptions.small}</option>
+                      <option value="medium">{t.asrOptions.medium}</option>
                     </select>
                   </Field>
                   <Field
-                    label="Voice Profile"
+                    label={t.fields.voiceProfile}
                     icon={<Mic2 className="h-4 w-4 text-gray-400" />}
                   >
                     <select
@@ -419,16 +460,14 @@ function App() {
                       }
                       className={inputClassName}
                     >
-                      <option value="en_female_neutral_01">
-                        English Female Neutral
-                      </option>
-                      <option value="en_male_neutral_01">English Male Neutral</option>
+                      <option value="en_female_neutral_01">{t.voiceProfiles.enFemaleNeutral01}</option>
+                      <option value="en_male_neutral_01">{t.voiceProfiles.enMaleNeutral01}</option>
                     </select>
                   </Field>
                 </div>
 
                 <Field
-                  label="Mix Mode"
+                  label={t.fields.mixMode}
                   icon={<Volume2 className="h-4 w-4 text-gray-400" />}
                 >
                   <select
@@ -437,21 +476,21 @@ function App() {
                     onChange={(event) => patchForm('mixMode', event.target.value)}
                     className={inputClassName}
                   >
-                    <option value="duck">Duck (Lower background audio)</option>
-                    <option value="replace">Replace (Mute original audio)</option>
+                    <option value="duck">{t.mixModes.duck}</option>
+                    <option value="replace">{t.mixModes.replace}</option>
                   </select>
                 </Field>
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <ToggleTile
-                    title="Prefer ffmpeg"
-                    body="Use ffmpeg when available for final render."
+                    title={t.toggles.preferFfmpegTitle}
+                    body={t.toggles.preferFfmpegBody}
                     checked={form.preferFfmpeg}
                     onChange={(checked) => patchForm('preferFfmpeg', checked)}
                   />
                   <ToggleTile
-                    title="Allow render fallback"
-                    body="Keep jobs moving if ffmpeg render fails."
+                    title={t.toggles.allowFallbackTitle}
+                    body={t.toggles.allowFallbackBody}
                     checked={form.allowRenderCopyFallback}
                     onChange={(checked) =>
                       patchForm('allowRenderCopyFallback', checked)
@@ -460,12 +499,9 @@ function App() {
                 </div>
 
                 <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-600">
-                  <span className="font-medium text-gray-800">Chinese ASR:</span>{' '}
-                  switch to <span className="text-black">medium</span> when extraction
-                  quality matters more than latency.
-                  {showHighAccuracyHint
-                    ? ' Tuned decoding is applied automatically in this mode.'
-                    : ''}
+                  <span className="font-medium text-gray-800">{t.hints.asrBase}</span>
+                  {showHighAccuracyHint ? ` ${t.hints.asrMediumActive}` : ''}
+                  {subtitleOverridesAsr ? ` ${t.hints.asrSubtitleOverride}` : ''}
                 </div>
 
                 {submitError ? (
@@ -486,11 +522,11 @@ function App() {
                   {isSubmitting ? (
                     <>
                       <LoaderCircle className="h-4 w-4 animate-spin" />
-                      Starting job
+                      {t.actions.startingJob}
                     </>
                   ) : (
                     <>
-                      Start Processing
+                      {t.actions.startProcessing}
                       <ChevronRight className="h-4 w-4" />
                     </>
                   )}
@@ -500,29 +536,44 @@ function App() {
           </ConsoleCard>
 
           <ConsoleCard
-            title="Active Run"
-            subtitle="Live job summary with polling against the current backend API."
+            title={t.cards.activeRunTitle}
+            subtitle={t.cards.activeRunSubtitle}
             icon={<Clock3 className="h-5 w-5 text-gray-400" />}
           >
             {activeTarget === null ? (
               <EmptyState
-                title="No job selected"
-                body="Create a new job or pick one from history to inspect stages, artifacts, and QA."
+                title={t.empty.noJobSelectedTitle}
+                body={t.empty.noJobSelectedBody}
               />
             ) : activeLoading && currentJob === null ? (
-              <LoadingState label="Loading job details" />
+              <LoadingState label={t.loading.jobDetails} />
             ) : activeError ? (
               <Banner tone="error" message={activeError} />
             ) : currentJob ? (
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
+                    {(() => {
+                      const currentStageLabel = translateStage(
+                        language,
+                        currentJob.current_stage,
+                        currentJob.status
+                      );
+
+                      return (
                     <div className="mb-2 flex items-center gap-2" data-testid="active-job-status-row">
-                      <StatusPill status={currentJob.status} />
-                      <span className="text-xs uppercase tracking-[0.18em] text-gray-400">
-                        {currentJob.current_stage ?? 'idle'}
-                      </span>
+                      <StatusPill
+                        status={currentJob.status}
+                        label={translateStatus(language, currentJob.status)}
+                      />
+                      {currentStageLabel ? (
+                        <span className="text-xs uppercase tracking-[0.18em] text-gray-400">
+                          {currentStageLabel}
+                        </span>
+                      ) : null}
                     </div>
+                      );
+                    })()}
                     <h3 className="font-medium text-gray-900" data-testid="active-job-id">{currentJob.id}</h3>
                     <p className="mt-1 text-sm text-gray-500">
                       {currentJob.input.video}
@@ -533,15 +584,15 @@ function App() {
                     onClick={() => setHistoryRefreshToken((value) => value + 1)}
                     className="rounded-full border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900"
                   >
-                    Refresh history
+                    {t.actions.refreshHistory}
                   </button>
                 </div>
 
                 <dl className="grid gap-3 sm:grid-cols-2">
-                  <KeyValue label="Artifact root" value={currentJob.artifact_root} mono />
-                  <KeyValue label="ASR model" value={currentJob.pipeline.asr_model} />
-                  <KeyValue label="Source language" value={currentJob.input.source_lang} />
-                  <KeyValue label="Target language" value={currentJob.input.target_lang} />
+                  <KeyValue label={t.activeRun.artifactRoot} value={currentJob.artifact_root} mono />
+                  <KeyValue label={t.activeRun.asrModel} value={currentJob.pipeline.asr_model} />
+                  <KeyValue label={t.activeRun.sourceLanguage} value={currentJob.input.source_lang} />
+                  <KeyValue label={t.activeRun.targetLanguage} value={currentJob.input.target_lang} />
                 </dl>
 
                 {currentJob.error_message ? (
@@ -553,40 +604,43 @@ function App() {
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
                         <ShieldAlert className="h-4 w-4 text-gray-400" />
-                        QA Summary
+                        {t.activeRun.qaSummary}
                       </div>
                       <StatusPill
                         status={currentQa.blocking ? 'paused' : 'completed'}
+                        label={translateStatus(
+                          language,
+                          currentQa.blocking ? 'paused' : 'completed'
+                        )}
                       />
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <KeyValue
-                        label="Segments checked"
+                        label={t.activeRun.segmentsChecked}
                         value={String(currentQa.segment_count)}
                       />
                       <KeyValue
-                        label="Overrun ratio"
+                        label={t.activeRun.overrunRatio}
                         value={`${Math.round(currentQa.overrun_ratio * 100)}%`}
                       />
                     </div>
                     <div className="mt-3 text-sm text-gray-600">
-                      Blocking reasons:{' '}
+                      {t.activeRun.blockingReasons}:{' '}
                       {currentQa.blocking_reasons.length > 0
                         ? currentQa.blocking_reasons.join(', ')
-                        : 'none'}
+                        : t.common.none}
                     </div>
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-5 text-sm text-gray-500">
-                    QA report not available yet. It will appear after the pipeline reaches
-                    the QA stage.
+                    {t.activeRun.qaPending}
                   </div>
                 )}
               </div>
             ) : (
               <EmptyState
-                title="No job data"
-                body="Select a job from history or create a new one to start polling."
+                title={t.empty.noJobDataTitle}
+                body={t.empty.noJobDataBody}
               />
             )}
           </ConsoleCard>
@@ -594,8 +648,8 @@ function App() {
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
           <ConsoleCard
-            title="History"
-            subtitle="Recent jobs under the selected artifact root."
+            title={t.cards.historyTitle}
+            subtitle={t.cards.historySubtitle}
             icon={<RefreshCw className="h-5 w-5 text-gray-400" />}
             action={
               <button
@@ -604,7 +658,7 @@ function App() {
                 className="flex items-center gap-2 rounded-full border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition hover:border-gray-300 hover:text-gray-900"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                Refresh
+                {t.actions.refresh}
               </button>
             }
           >
@@ -622,12 +676,13 @@ function App() {
                 }
                 className={inputClassName}
               >
-                <option value="all">All statuses</option>
-                <option value="running">Running</option>
-                <option value="completed">Completed</option>
-                <option value="failed">Failed</option>
-                <option value="paused">Paused</option>
-                <option value="pending">Pending</option>
+                <option value="all">{t.history.allStatuses}</option>
+                <option value="running">{t.history.running}</option>
+                <option value="completed">{t.history.completed}</option>
+                <option value="failed">{t.history.failed}</option>
+                <option value="paused">{t.history.paused}</option>
+                <option value="pending">{t.history.pending}</option>
+                <option value="cancelled">{t.history.cancelled}</option>
               </select>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -635,31 +690,39 @@ function App() {
                   value={historyQuery}
                   onChange={(event) => setHistoryQuery(event.target.value)}
                   className={`${inputClassName} pl-9`}
-                  placeholder="Search jobs"
+                  placeholder={t.placeholders.searchJobs}
                 />
               </div>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <MiniMetric label="Total" value={String(historyMetrics.total)} />
-              <MiniMetric label="Completed" value={String(historyMetrics.completed)} />
-              <MiniMetric label="Failed/Paused" value={String(historyMetrics.attention)} />
+              <MiniMetric label={t.metrics.total} value={String(historyMetrics.total)} />
+              <MiniMetric label={t.metrics.completed} value={String(historyMetrics.completed)} />
+              <MiniMetric
+                label={t.metrics.failedPaused}
+                value={String(historyMetrics.attention)}
+              />
             </div>
 
             <div className="mt-5 space-y-3">
               {historyLoading ? (
-                <LoadingState label="Loading history" compact />
+                <LoadingState label={t.loading.history} compact />
               ) : historyError ? (
                 <Banner tone="error" message={historyError} />
               ) : visibleJobs.length === 0 ? (
                 <EmptyState
-                  title="No jobs found"
-                  body="Change the artifact root, clear filters, or create a new run from the panel above."
+                  title={t.empty.noJobsFoundTitle}
+                  body={t.empty.noJobsFoundBody}
                   compact
                 />
               ) : (
                 visibleJobs.slice(0, 10).map((job) => {
                   const isActive = activeTarget?.jobId === job.id;
+                  const historyStageLabel = translateStage(
+                    language,
+                    job.current_stage,
+                    job.status
+                  );
                   return (
                     <button
                       data-testid={`history-job-${job.id}`}
@@ -673,13 +736,17 @@ function App() {
                       }`}
                     >
                       <div className="mb-2 flex items-center justify-between gap-3">
-                        <StatusPill status={job.status} inverted={isActive} />
+                        <StatusPill
+                          status={job.status}
+                          label={translateStatus(language, job.status)}
+                          inverted={isActive}
+                        />
                         <span
                           className={`text-xs ${
                             isActive ? 'text-white/70' : 'text-gray-400'
                           }`}
                         >
-                          {formatDateTime(job.updated_at)}
+                          {formatDateTimeForLanguage(job.updated_at, language)}
                         </span>
                       </div>
                       <div className="font-medium">{job.id}</div>
@@ -696,7 +763,7 @@ function App() {
                         }`}
                       >
                         <span>{job.pipeline.asr_model}</span>
-                        <span>{job.current_stage ?? 'idle'}</span>
+                        {historyStageLabel ? <span>{historyStageLabel}</span> : null}
                       </div>
                     </button>
                   );
@@ -707,14 +774,14 @@ function App() {
 
           <div className="grid gap-6">
             <ConsoleCard
-              title="Stage Timeline"
-              subtitle="Latest known stage runs from the selected job."
+              title={t.cards.stageTimelineTitle}
+              subtitle={t.cards.stageTimelineSubtitle}
               icon={<Clock3 className="h-5 w-5 text-gray-400" />}
             >
               {currentStageRuns.length === 0 ? (
                 <EmptyState
-                  title="No stage runs yet"
-                  body="Once a job starts, stage attempts and timings will appear here."
+                  title={t.empty.noStageRunsTitle}
+                  body={t.empty.noStageRunsBody}
                   compact
                 />
               ) : (
@@ -727,17 +794,23 @@ function App() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <StatusPill status={run.status} />
+                            <StatusPill
+                              status={run.status}
+                              label={translateStatus(language, run.status)}
+                            />
                             <span className="text-sm font-medium capitalize text-gray-900">
-                              {run.stage_name}
+                              {translateStage(language, run.stage_name)}
                             </span>
                           </div>
                           <div className="mt-2 text-xs text-gray-500">
-                            Attempt {run.attempt} · {formatDuration(run.duration_ms)}
+                            {t.timeline.attempt} {run.attempt} ·{' '}
+                            {formatDuration(run.duration_ms, t.common.notAvailable)}
                           </div>
                         </div>
                         <span className="text-xs text-gray-400">
-                          {run.finished_at ? formatDateTime(run.finished_at) : 'in progress'}
+                          {run.finished_at
+                            ? formatDateTimeForLanguage(run.finished_at, language)
+                            : t.timeline.inProgress}
                         </span>
                       </div>
                       {run.error_message ? (
@@ -750,25 +823,25 @@ function App() {
             </ConsoleCard>
 
             <ConsoleCard
-              title="Artifacts and QA"
-              subtitle="Key outputs, logs, and QA report paths for the selected run."
+              title={t.cards.artifactsTitle}
+              subtitle={t.cards.artifactsSubtitle}
               icon={<FileText className="h-5 w-5 text-gray-400" />}
             >
               <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
                 <div>
                   <h3 className="mb-3 text-sm font-medium text-gray-800">
-                    Recent Artifacts
+                    {t.artifacts.recentArtifacts}
                   </h3>
                   {currentArtifacts.length === 0 ? (
                     <EmptyState
-                      title="No artifacts yet"
-                      body="Artifacts appear as each stage persists outputs."
+                      title={t.empty.noArtifactsTitle}
+                      body={t.empty.noArtifactsBody}
                       compact
                     />
                   ) : (
                     <div className="space-y-3" data-testid="artifact-list">
                       {currentArtifacts.slice(-8).reverse().map((artifact) => (
-                        <ArtifactRow key={artifact.id} artifact={artifact} />
+                        <ArtifactRow key={artifact.id} artifact={artifact} language={language} />
                       ))}
                     </div>
                   )}
@@ -777,24 +850,24 @@ function App() {
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-gray-200 bg-white p-4">
                     <div className="mb-2 text-sm font-medium text-gray-800">
-                      Log Snapshot
+                      {t.artifacts.logSnapshot}
                     </div>
                     <div className="space-y-1 text-xs leading-5 text-gray-500">
                       <p>
-                        Stage runs: {activeData?.logs?.stage_runs.length ?? 0}
+                        {t.artifacts.stageRuns}: {activeData?.logs?.stage_runs.length ?? 0}
                       </p>
                       <p>
-                        Log files: {activeData?.logs?.log_files.length ?? 0}
+                        {t.artifacts.logFiles}: {activeData?.logs?.log_files.length ?? 0}
                       </p>
                       <p>
-                        Segment reruns: {activeData?.logs?.segment_reruns.length ?? 0}
+                        {t.artifacts.segmentReruns}: {activeData?.logs?.segment_reruns.length ?? 0}
                       </p>
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-gray-200 bg-white p-4">
                     <div className="mb-2 text-sm font-medium text-gray-800">
-                      QA Flag Counts
+                      {t.artifacts.qaFlagCounts}
                     </div>
                     {currentQa ? (
                       Object.keys(currentQa.flag_counts).length > 0 ? (
@@ -806,11 +879,11 @@ function App() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-xs text-gray-500">No QA flags recorded.</p>
+                        <p className="text-xs text-gray-500">{t.artifacts.noQaFlags}</p>
                       )
                     ) : (
                       <p className="text-xs text-gray-500">
-                        QA summary will appear after the pipeline reaches the QA stage.
+                        {t.artifacts.qaSummaryPending}
                       </p>
                     )}
                   </div>
@@ -996,9 +1069,11 @@ function EmptyState({
 
 function StatusPill({
   status,
+  label,
   inverted = false,
 }: {
   status: string;
+  label: string;
   inverted?: boolean;
 }) {
   const styles = inverted
@@ -1019,8 +1094,8 @@ function StatusPill({
   const className = styles[status as keyof typeof styles] ?? styles.pending;
 
   return (
-    <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] ${className}`}>
-      {status}
+    <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium tracking-[0.14em] ${className}`}>
+      {label}
     </span>
   );
 }
@@ -1053,14 +1128,22 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ArtifactRow({ artifact }: { artifact: ArtifactItem }) {
+function ArtifactRow({
+  artifact,
+  language,
+}: {
+  artifact: ArtifactItem;
+  language: UiLanguage;
+}) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-medium text-gray-900">{artifact.artifact_type}</div>
           <div className="mt-1 text-xs uppercase tracking-[0.16em] text-gray-400">
-            {artifact.stage_name ?? 'unknown stage'}
+            {artifact.stage_name
+              ? translateStage(language, artifact.stage_name)
+              : uiCopy[language].common.unknownStage}
           </div>
         </div>
         <div className="text-xs text-gray-400">
@@ -1084,9 +1167,9 @@ function summarizeJobs(items: ActiveJobBundle['job'][]) {
   };
 }
 
-function formatDuration(value: number | null) {
+function formatDuration(value: number | null, fallback: string) {
   if (value === null) {
-    return 'n/a';
+    return fallback;
   }
   if (value < 1000) {
     return `${value} ms`;
@@ -1102,19 +1185,6 @@ function formatBytes(value: number) {
     return `${(value / 1024).toFixed(1)} KB`;
   }
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
 }
 
 const inputClassName =

@@ -46,7 +46,15 @@ const screenshots = [];
 
 try {
   await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30000 });
-  screenshots.push(await shot('01-home.png'));
+  await page.getByTestId('ui-language-zh').click();
+  await page.getByText('新建任务', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('当前任务', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  screenshots.push(await shot('01-zh-home.png'));
+
+  await page.getByTestId('ui-language-en').click();
+  await page.getByText('New Job', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('Active Run', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  screenshots.push(await shot('02-en-home.png'));
 
   await page.getByTestId('input-video-path').fill(videoPath);
   await page.getByTestId('input-subtitle-path').fill(subtitlePath);
@@ -56,7 +64,7 @@ try {
   await page.getByTestId('select-asr-model').selectOption('medium');
   await page.getByTestId('select-voice-profile').selectOption('en_female_neutral_01');
   await page.getByTestId('select-mix-mode').selectOption('duck');
-  screenshots.push(await shot('02-form-filled.png'));
+  screenshots.push(await shot('03-en-form-filled.png'));
 
   await page.getByTestId('button-start-processing').click();
 
@@ -81,7 +89,18 @@ try {
   await historyLocator.waitFor({ state: 'visible', timeout: 30000 });
   await historyLocator.click();
 
-  screenshots.push(await shot('03-job-complete.png'));
+  screenshots.push(await shot('04-en-job-complete.png'));
+
+  await page.getByTestId('ui-language-zh').click();
+  await page.getByText('历史记录', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('产物与 QA', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
+  const zhStatusRow =
+    (await page.getByTestId('active-job-status-row').textContent())?.trim() ?? '';
+  const zhQaSummary = (await page.getByTestId('qa-summary').textContent())?.trim() ?? '';
+  screenshots.push(await shot('05-zh-job-complete.png'));
+
+  await page.getByTestId('ui-language-en').click();
+  await page.getByText('History', { exact: true }).first().waitFor({ state: 'visible', timeout: 10000 });
 
   const result = {
     baseUrl,
@@ -89,8 +108,11 @@ try {
     subtitlePath,
     artifactRoot,
     jobId,
+    languagesVerified: ['zh', 'en'],
     statusRow,
+    zhStatusRow,
     qaSummary,
+    zhQaSummary,
     artifacts,
     screenshots,
     consoleMessages,

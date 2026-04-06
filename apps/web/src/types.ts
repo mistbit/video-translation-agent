@@ -9,7 +9,8 @@ export type JobStatus =
   | 'running'
   | 'completed'
   | 'failed'
-  | 'paused';
+  | 'paused'
+  | 'cancelled';
 
 export type PipelineConfig = {
   asr_model: string;
